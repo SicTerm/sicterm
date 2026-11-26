@@ -136,7 +136,7 @@ internal sealed partial class MainWindow
         foreach (var frame in PaneZoom.Choices) zoom.Items.Add(new ComboBoxItem { Content = PaneZoom.Label(frame), Tag = frame });
         zoom.SelectedItem = zoom.Items.OfType<ComboBoxItem>().First(item => (string)item.Tag == _preferences.PaneZoom);
         zoom.SelectionChanged += (_, _) => { if (zoom.SelectedItem is ComboBoxItem { Tag: string frame }) SetPaneZoom(frame, _preferences.PaneZoomPercent); };
-        Explain(zoom, "Ctrl+Shift+Z shows the focused pane as a card over the others, and puts it back. Window: a share of the whole window, over the side panel too. Terminal area: a share of the room the panes have.");
+        Explain(zoom, "Ctrl+Shift+Z shows the focused pane as a card over the others, and puts it back. Screen: a share of the display, whatever the window's size; a window too small for it fills the display while zoomed. Window: a share of the whole window, over the side panel too. Terminal area: a share of the room the panes have.");
         stack.Children.Add(zoom);
         var zoomSize = new Slider
         {

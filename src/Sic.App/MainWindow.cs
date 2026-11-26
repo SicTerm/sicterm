@@ -248,6 +248,10 @@ internal sealed partial class MainWindow : Window
                 if (_options.RestoreOnly) { await RunRestoreCheckAsync(); return; }
                 if (_options.Measure is { } measure) { await MeasureHiddenOutputAsync(measure); return; }
                 if (_options.SmokeTest) CreateSmokeHistory();
+                // A tab restored zoomed, now that the window is placed: the Screen frame may grow it (MainWindow.Zoom.cs).
+                // After the first layout, so the body's size is known.
+                if (SelectedHost is { Content.Zoomed: not null } zoomedAtLaunch)
+                    DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => { if (ReferenceEquals(SelectedHost, zoomedAtLaunch)) ApplyZoom(zoomedAtLaunch); });
                 // The browser that every terminal runs in is brought up now, so the first session does not wait for it.
                 TerminalView.WarmUp(Path.Combine(_options.DataDirectory, "WebView2"));
                 // The list from the catalog as it stands, at once; the refresh below brings it up to date and lists again
@@ -332,6 +336,8 @@ internal sealed partial class MainWindow : Window
         var status = BuildStatusBar(); Grid.SetRow(status, 1); _root.Children.Add(status);
         // The zoomed pane's card follows the window's body as it moves and resizes (MainWindow.Zoom.cs).
         _root.LayoutUpdated += (_, _) => FollowZoomFrame();
+        // A move or resize may put the window on another display, or at another scaling: the Screen frame reads the work area again.
+        AppWindow.Changed += (_, args) => { if (args.DidPositionChange || args.DidSizeChange) _zoomWorkArea = null; };
         RegisterShortcuts();
         ApplySidebarSide();
         ApplyTabBarSide();

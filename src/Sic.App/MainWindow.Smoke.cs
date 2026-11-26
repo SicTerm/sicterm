@@ -1133,13 +1133,15 @@ internal sealed partial class MainWindow
             // The zoomed pane (MainWindow.Zoom.cs): Ctrl+Shift+Z from inside the live terminal, through the page's chord table, lifts
             // the pane out of its tiling as a card of 80% of the window's body, over the panel, the other panes dimmed and the
             // terminal grown into it; the zoom is saved with the tab. Alt+Right moves it to the pane on that side and a press on the
-            // dim brings it back; Terminal area takes a share of the canvas instead; the same key puts the pane back at its tiled
-            // size, and a pane joining the tab ends a zoom. The other panes are placeholders.
+            // dim brings it back; Terminal area takes a share of the canvas instead, and Screen a share of the display, growing the
+            // window while it needs the room; the same key puts the pane back at its tiled size and the window where it was, and a
+            // pane joining the tab ends a zoom. The other panes are placeholders.
             SavedPane ZoomPane(int number) => new(Guid.NewGuid().ToString("N"), "shell", "PowerShell · zoom " + number, data, "");
             var zoomB = AddPane(shellHost, ZoomPane(2), pane, PaneSplit.Columns);
             var zoomC = AddPane(shellHost, ZoomPane(3), zoomB, PaneSplit.Rows);
             SetActivePane(pane);
             var zoomMisses = new List<string>();
+            SetPaneZoom(PaneZoom.Window, PaneZoom.DefaultPercent);
             var tiledSize = await WaitForSizeAsync(terminal, size => size.Columns < single.Columns);
             var zoomTaken = await terminal.PressKeyAsync("Z", ctrl: true, shift: true);
             await EventuallyAsync(() => shellHost.Content.Zoomed == pane.Descriptor.Id);
@@ -1171,16 +1173,35 @@ internal sealed partial class MainWindow
             if (shellHost.Content.ZoomCard != areaCard || Math.Abs(pane.ActualWidth - areaCard.Width) > 1.5) zoomMisses.Add($"Terminal area at 60% put the card at {shellHost.Content.ZoomCard}, not {areaCard}");
             await Task.Delay(300);
             await CaptureWindowAsync(Path.Combine(data, "zoom-area.png"));
-            SetPaneZoom(PaneZoom.Default, PaneZoom.DefaultPercent);
+            // Screen: 80% of the display's work area, centred on the window's body. The smoke's 1440×900 window is too small for
+            // it on any display wider than 1800 px, and is then grown to the work area while the pane is zoomed and put back after.
+            var windowBefore = AppWindowBounds;
+            var (zoomWorkWidth, zoomWorkHeight) = ZoomWorkArea();
+            var screenNeedsRoom = !PaneZoom.ScreenCardFits(_body.ActualWidth, _body.ActualHeight, zoomWorkWidth, zoomWorkHeight, PaneZoom.DefaultPercent, ZoomStrip);
+            SetPaneZoom(PaneZoom.Screen, PaneZoom.DefaultPercent);
+            var screenCardWidth = Math.Round(zoomWorkWidth * PaneZoom.DefaultPercent / 100.0);
+            var screenPlaced = await EventuallyAsync(() =>
+            {
+                shellHost.Content.UpdateLayout();
+                return Math.Abs(shellHost.Content.ZoomCard.Width - Math.Min(screenCardWidth, Math.Floor(_body.ActualWidth))) < 1.5 && Math.Abs(pane.ActualWidth - shellHost.Content.ZoomCard.Width) < 1.5;
+            });
+            var screenGrown = _zoomGrowth is { } zoomGrown && zoomGrown.Before == windowBefore && AppWindowBounds == zoomGrown.After && AppWindowBounds != windowBefore;
+            if (!screenPlaced || screenGrown != screenNeedsRoom)
+                zoomMisses.Add($"Screen put the card at {shellHost.Content.ZoomCard}, not {screenCardWidth} wide, or {(screenNeedsRoom ? "did not grow" : "grew")} the window (body {_body.ActualWidth:0}×{_body.ActualHeight:0}, work area {zoomWorkWidth:0}×{zoomWorkHeight:0})");
+            await Task.Delay(300);
+            await CaptureWindowAsync(Path.Combine(data, "zoom-screen.png"));
             var unzoomTaken = await terminal.PressKeyAsync("Z", ctrl: true, shift: true);
             await EventuallyAsync(() => shellHost.Content.Zoomed is null);
             var unzoomedSize = await WaitForSizeAsync(terminal, size => size == tiledSize);
             if (!unzoomTaken || shellHost.Content.Zoomed is not null || shellHost.Content.Dimmed || shellHost.Saved.Zoomed is not null || pane.IsZoomed || unzoomedSize != tiledSize || !PanesTiled(shellHost) || Canvas.GetZIndex(_work) != 0)
                 zoomMisses.Add($"Ctrl+Shift+Z again did not put the pane back at {tiledSize.Columns}×{tiledSize.Rows} (taken={unzoomTaken} zoomed={shellHost.Content.Zoomed} size={unzoomedSize.Columns}×{unzoomedSize.Rows})");
+            if (_zoomGrowth is not null || AppWindowBounds != windowBefore) zoomMisses.Add($"zooming out did not put the window back at {windowBefore}: it is at {AppWindowBounds}");
+            SetPaneZoom(PaneZoom.Window, PaneZoom.DefaultPercent);
             SetZoomed(shellHost, pane);
             var zoomD = AddPane(shellHost, ZoomPane(4), zoomC, PaneSplit.Rows);
             if (shellHost.Content.Zoomed is not null || shellHost.Saved.Zoomed is not null || Canvas.GetZIndex(_work) != 0) zoomMisses.Add("a pane joining the tab did not end the zoom");
             foreach (var extra in new[] { zoomB, zoomC, zoomD }) await ClosePaneAsync(shellHost, extra);
+            SetPaneZoom(PaneZoom.Default, PaneZoom.DefaultPercent);
             if (zoomMisses.Count > 0 || shellHost.Panes.Count != 1 || !pane.IsRunning) throw new InvalidOperationException("The zoomed pane was wrong: " + string.Join("; ", zoomMisses) + ".");
             // Back to one pane, every side but the top is the tab's edge: Alt+Right and Alt+Down reach the terminal, and Alt+Up still
             // goes up to the tab strip, from which Down comes back in.

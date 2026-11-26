@@ -64,6 +64,8 @@ internal sealed partial class MainWindow
         {
             case OverlappedPresenterState.Restored:
                 _restoredBounds = new(AppWindow.Position.X, AppWindow.Position.Y, AppWindow.Size.Width, AppWindow.Size.Height);
+                // Grown for a zoomed pane (MainWindow.Zoom.cs), the window is saved at the bounds it goes back to.
+                if (_zoomGrowth is { } growth && _restoredBounds == growth.After) _restoredBounds = growth.Before;
                 placement = new(_restoredBounds.X, _restoredBounds.Y, _restoredBounds.Width, _restoredBounds.Height, false);
                 break;
             case OverlappedPresenterState.Maximized:
