@@ -216,7 +216,8 @@ internal sealed partial class MainWindow
         _workspace = _workspaces.First(workspace => workspace.Id == selectedId);
         var selected = StripHosts.FirstOrDefault(host => host.Saved.Id == _workspace.SelectedTabId)?.Item;
         _tabs.SelectedItem = selected ?? _tabs.TabItems.OfType<TabViewItem>().FirstOrDefault();
-        SetActivePane(SelectedPanes.FirstOrDefault());
+        // The tab's focused pane, its first unless one was restored zoomed (CreateTab), which keeps the zoom.
+        SetActivePane(SelectedHost is { Panes.Count: > 0 } shown ? FocusedPane(shown) : null);
         RefreshFolderMarks();
         RefreshFoldersPanel();
         RefreshWorkspacePanel();

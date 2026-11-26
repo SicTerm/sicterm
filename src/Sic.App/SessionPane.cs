@@ -237,6 +237,12 @@ internal sealed class SessionPane : Grid, IAsyncDisposable
     private uint _pressedPointer;
     /// <summary>False in a tab of one pane, which already is a tab of its own; the Move pane to new tab item is greyed.</summary>
     internal bool CanMoveOut { get; set; }
+
+    /// <summary>Whether the pane is shown as a card over its tab's other panes (MainWindow.Zoom.cs); the pane's menu offers Zoom out then.</summary>
+    internal bool IsZoomed { get; set; }
+
+    /// <summary>The pane's menu asked to zoom the pane, or to put it back while it is zoomed.</summary>
+    internal event Action<SessionPane>? ZoomRequested;
     /// <summary>The placeholder's Turn on, for an agent switched off in Settings: the agent's ID.</summary>
     internal event Action<string>? TurnOnAgentRequested;
 
@@ -1097,6 +1103,7 @@ internal sealed class SessionPane : Grid, IAsyncDisposable
         var down = SplitItem(PaneSplit.Rows);
         RefreshSplitItems(right, down);
         menu.Items.Add(right); menu.Items.Add(down); menu.Items.Add(KeepEvenItem());
+        AddItem(menu, IsZoomed ? "Zoom out" : "Zoom pane", IsZoomed ? "" : "", true, () => { ZoomRequested?.Invoke(this); return Task.CompletedTask; }, "Ctrl+Shift+Z");
         AddItem(menu, "Move pane to new tab", "", CanMoveOut, () => { MoveOutRequested?.Invoke(this); return Task.CompletedTask; });
         ExtendingMenu?.Invoke(this, menu);
         if (!AgentOff) AddItem(menu, "New " + Theme.AgentName(Descriptor.AgentId) + " session in this folder", "", true, () => { DuplicateRequested?.Invoke(this); return Task.CompletedTask; });

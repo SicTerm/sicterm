@@ -25,9 +25,12 @@ public sealed record SavedPane(string Id, string AgentId, string Title, string W
 /// (<see cref="PaneLayout.Even"/>) through splits and closes: on for a new tab, off once a divider is dragged, and either way
 /// from the tab's menu. A tab saved before the choice existed (null) keeps even when none of its dividers has been dragged
 /// (<see cref="PaneLayout.Untouched"/>), and keeps its own ratios otherwise; the answer is written from then on.
+/// <see cref="Zoomed"/> is the <see cref="SavedPane.Id"/> of the pane shown as a card over the others (<see cref="Appearance.PaneZoom"/>),
+/// or null, not written, while none is; an id the tab no longer holds reads as none.
 /// </summary>
 public sealed record SavedTab(string Id, string Title, List<SavedPane> Panes, string? CustomTitle = null, double? SplitRatio = null, string? Color = null,
-    double? RowRatio = null, PaneNode? Layout = null, bool? KeepEven = null);
+    double? RowRatio = null, PaneNode? Layout = null, bool? KeepEven = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Zoomed = null);
 
 /// <summary>
 /// A workspace: a group of tabs with a tab strip of its own, one per folder in the Folders
@@ -129,6 +132,10 @@ public sealed class AppPreferences
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? PaneBorder { get; set; }
+    /// <summary>A <see cref="Appearance.PaneZoom"/> word: what the zoomed pane's card is a share of (Settings → Zoomed pane). Normalized on load.</summary>
+    public string PaneZoom { get; set; } = Appearance.PaneZoom.Default;
+    /// <summary>The zoomed pane's card, in percent of its frame's width and height (Settings → Zoomed pane size). Clamped on load by <see cref="Appearance.PaneZoom.Clamp"/>.</summary>
+    public int PaneZoomPercent { get; set; } = Appearance.PaneZoom.DefaultPercent;
     /// <summary>A <see cref="SettingsTabs"/> word: the Settings tab last shown. Normalized on load.</summary>
     public string SettingsTab { get; set; } = SettingsTabs.General;
     /// <summary>An <see cref="Appearance.AppIcon"/> option: the icon on the taskbar, the title bar and the tray. Normalized on load.</summary>

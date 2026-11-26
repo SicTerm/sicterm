@@ -177,6 +177,8 @@ internal sealed partial class MainWindow : Window
         // A width saved by 0.9.26 or 0.9.27 as a word is read once into pixels, and not written again.
         if (_preferences.PaneBorder is { } borderWord) { _preferences.PaneBorderWidth = PaneBorder.FromWord(borderWord); _preferences.PaneBorder = null; }
         _preferences.PaneBorderWidth = PaneBorder.Clamp(_preferences.PaneBorderWidth);
+        _preferences.PaneZoom = PaneZoom.Normalize(_preferences.PaneZoom);
+        _preferences.PaneZoomPercent = PaneZoom.Clamp(_preferences.PaneZoomPercent);
         _preferences.WindowOpacity = ClampWindowOpacity(_preferences.WindowOpacity);
         // The Frosted chrome switch of an early build (0.9.52-trial.1) is read once into the Chrome choice, and not written again.
         if (_preferences.FrostedChrome is { } frosted) { if (frosted) _preferences.Chrome = ChromeStyle.Frosted; _preferences.FrostedChrome = null; }
@@ -328,6 +330,8 @@ internal sealed partial class MainWindow : Window
         // The unseen emoji box, for the Emoji… item on a folder's menu in either panel (docs/decisions/folder-emoji.md): under the root, so it is there whichever panel shows.
         _root.Children.Add(BuildFolderEmojiBox());
         var status = BuildStatusBar(); Grid.SetRow(status, 1); _root.Children.Add(status);
+        // The zoomed pane's card follows the window's body as it moves and resizes (MainWindow.Zoom.cs).
+        _root.LayoutUpdated += (_, _) => FollowZoomFrame();
         RegisterShortcuts();
         ApplySidebarSide();
         ApplyTabBarSide();
@@ -983,6 +987,8 @@ internal sealed partial class MainWindow : Window
         Add(VirtualKey.E, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, "open-folder");
         Add(VirtualKey.S, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, "toggle-panel");
         Add(VirtualKey.A, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, "workspace-list");
+        // WezTerm's key for a pane zoomed over its tab, and back (MainWindow.Zoom.cs).
+        Add(VirtualKey.Z, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, "zoom");
         Add(VirtualKey.Tab, VirtualKeyModifiers.Control, "next-tab");
         Add(VirtualKey.Tab, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, "previous-tab");
         // VK_OEM_PLUS and VK_OEM_MINUS: Windows Terminal's own pair for a split into columns and into rows.

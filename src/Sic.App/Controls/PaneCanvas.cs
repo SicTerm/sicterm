@@ -31,6 +31,16 @@ internal sealed class PaneCanvas : Panel
     // The mark's brushes, recolored for each showing rather than made anew at every step of a drag.
     private readonly SolidColorBrush _dropFillBrush = new(), _dropBorderBrush = new(), _dropPillBrush = new(), _dropInkBrush = new();
     private PaneRect _dropRect;
+    // The zoom (Sic.Core.Appearance.PaneZoom): the zoomed pane's id and its card, in the canvas's own pixels, which may reach past
+    // its edges over the window's body; and the dim over the other panes, which takes a press so it never reaches their terminals.
+    private readonly Border _dim = new() { Visibility = Visibility.Collapsed };
+    private string? _zoomed;
+    private PaneRect _zoomCard;
+    // Over the tiled panes and the dividers: the dim, the zoomed pane on it, and the drop mark above them all.
+    private const int DimLayer = 10, ZoomedLayer = 11, DropLayer = 12;
+
+    /// <summary>A press on the dim behind the zoomed pane, with the pane under it (the nearest, on a divider), already found.</summary>
+    internal event Action<string>? DimPressed;
 
     /// <summary>The tree as it is now, the ratio of a divider being dragged included.</summary>
     internal PaneNode Tree { get; private set; }
@@ -51,7 +61,42 @@ internal sealed class PaneCanvas : Panel
         _dropPill.Child = _dropLabel;
         _dropMark.Children.Add(_dropFill);
         _dropMark.Children.Add(_dropPill);
+        Canvas.SetZIndex(_dropMark, DropLayer);
         Children.Add(_dropMark);
+        _dim.Background = new SolidColorBrush(Theme.WithAlpha(Microsoft.UI.Colors.Black, 0.55));
+        Canvas.SetZIndex(_dim, DimLayer);
+        _dim.PointerPressed += (_, args) =>
+        {
+            args.Handled = true;
+            if (NearestPane(args.GetCurrentPoint(this).Position) is { } pressed) DimPressed?.Invoke(pressed.Pane);
+        };
+        Children.Add(_dim);
+    }
+
+    /// <summary>The pane shown as a card over the others, by id; null while none is.</summary>
+    internal string? Zoomed => _zoomed;
+
+    /// <summary>Where the zoomed pane's card is, in the canvas's pixels; empty while none is zoomed.</summary>
+    internal PaneRect ZoomCard => _zoomed is null ? default : _zoomCard;
+
+    /// <summary>Whether the dim behind the zoomed pane shows, for verification.</summary>
+    internal bool Dimmed => _dim.Visibility == Visibility.Visible;
+
+    /// <summary>
+    /// Shows the pane <paramref name="pane"/> as a card at <paramref name="card"/> (the canvas's pixels; it may reach past the
+    /// canvas's edges), over the other panes, which stay tiled under a dim; null puts it back in its place. Only the arrangement
+    /// changes: the pane stays a child of the canvas, so its terminal is resized and never reloaded.
+    /// </summary>
+    internal void Zoom(string? pane, PaneRect card)
+    {
+        if (_zoomed == pane && (pane is null || _zoomCard == card)) return;
+        if (_zoomed is not null && Panes.FirstOrDefault(item => item.Descriptor.Id == _zoomed) is { } previous) Canvas.SetZIndex(previous, 0);
+        _zoomed = pane;
+        _zoomCard = card;
+        if (pane is not null && Panes.FirstOrDefault(item => item.Descriptor.Id == pane) is { } zoomed) Canvas.SetZIndex(zoomed, ZoomedLayer);
+        _dim.Visibility = pane is null ? Visibility.Collapsed : Visibility.Visible;
+        ForgetPlacements();
+        InvalidateMeasure();
     }
 
     /// <summary>The panes shown, in the tree's order.</summary>
@@ -88,12 +133,22 @@ internal sealed class PaneCanvas : Panel
             Children.Add(splitter);
         }
         Children.Add(_dropMark);
+        // A zoomed pane that has left the tab takes the zoom with it.
+        if (_zoomed is not null && !panes.Any(pane => pane.Descriptor.Id == _zoomed)) { _zoomed = null; _dim.Visibility = Visibility.Collapsed; }
+        // A pane moved in from another tab may still carry the layer it was zoomed on there.
+        foreach (var pane in panes) Canvas.SetZIndex(pane, pane.Descriptor.Id == _zoomed ? ZoomedLayer : 0);
         ForgetPlacements();
         InvalidateMeasure();
     }
 
     /// <summary>Takes a pane out of the children without retiling, for a pane on its way to another tab's canvas; a pane may have one parent at a time.</summary>
-    internal void Detach(SessionPane pane) { Children.Remove(pane); ForgetPlacements(); }
+    internal void Detach(SessionPane pane)
+    {
+        Children.Remove(pane);
+        Canvas.SetZIndex(pane, 0);
+        if (pane.Descriptor.Id == _zoomed) { _zoomed = null; _dim.Visibility = Visibility.Collapsed; }
+        ForgetPlacements();
+    }
 
     /// <summary>
     /// Where a drop at <paramref name="point"/> (in the canvas's own pixels) would land, from the last layout: the pane under the
@@ -101,6 +156,14 @@ internal sealed class PaneCanvas : Panel
     /// and the half of it the drop would take (<see cref="PaneLayout.DropArea"/>). Null before the canvas is laid out.
     /// </summary>
     internal PaneDrop? DropAt(Point point)
+    {
+        if (NearestPane(point) is not { } nearest) return null;
+        var side = PaneLayout.DropSide(nearest.Rect, point.X, point.Y);
+        return new PaneDrop(nearest.Pane, side, PaneLayout.DropArea(nearest.Rect, side, PaneSplitter.GrabSize));
+    }
+
+    /// <summary>The pane under <paramref name="point"/> (the canvas's pixels) as last tiled, or the nearest when the point is on a divider; null before the canvas is laid out.</summary>
+    private PanePlacement? NearestPane(Point point)
     {
         if (_arrangement is null || _arrangement.Panes.Count == 0) return null;
         PanePlacement? nearest = null;
@@ -114,9 +177,7 @@ internal sealed class PaneCanvas : Panel
             if (distance >= least) continue;
             (nearest, least) = (placement, distance);
         }
-        if (nearest is null) return null;
-        var side = PaneLayout.DropSide(nearest.Rect, point.X, point.Y);
-        return new PaneDrop(nearest.Pane, side, PaneLayout.DropArea(nearest.Rect, side, PaneSplitter.GrabSize));
+        return nearest;
     }
 
     /// <summary>
@@ -205,10 +266,12 @@ internal sealed class PaneCanvas : Panel
         _arrangement = PaneLayout.Arrange(Tree, width, height, PaneSplitter.GrabSize);
         var panes = Panes.ToDictionary(pane => pane.Descriptor.Id, StringComparer.Ordinal);
         var placements = new List<(UIElement, PaneRect)>(_arrangement.Panes.Count + _arrangement.Dividers.Count + 1);
+        // The zoomed pane at its card; the others where the tree tiles them, under the dim, which covers the canvas.
         foreach (var placement in _arrangement.Panes)
-            if (panes.TryGetValue(placement.Pane, out var pane)) placements.Add((pane, placement.Rect));
+            if (panes.TryGetValue(placement.Pane, out var pane)) placements.Add((pane, placement.Pane == _zoomed ? _zoomCard : placement.Rect));
         foreach (var placement in _arrangement.Dividers)
             if (_dividers.TryGetValue(placement.Path, out var divider)) placements.Add((divider, placement.Rect));
+        placements.Add((_dim, _dim.Visibility == Visibility.Visible ? new PaneRect(0, 0, width, height) : new PaneRect(0, 0, 0, 0)));
         placements.Add((_dropMark, _dropMark.Visibility == Visibility.Visible ? _dropRect : new PaneRect(0, 0, 0, 0)));
         _placements = placements; _placedFor = (width, height);
         return placements;
