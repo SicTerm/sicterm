@@ -5,7 +5,7 @@
 
 # SicTerm
 
-**Super-Intelligent-Chat Terminal.** Claude Code, Codex, Hermes and OpenCode side by side in one Windows app, with every conversation they have saved in one searchable list.
+**Super-Intelligent-Chat Terminal.** Run and resume Claude Code, Codex, OpenCode and Hermes terminal sessions side by side in one Windows app, and search every conversation they have saved.
 
 SicTerm runs the coding agents already installed on the PC, signed in with their own accounts, in tabs and split panes next to PowerShell. Conversations come from each agent's own saved history, which SicTerm reads but never changes, and resume through the agent itself in the folder they belong to. A local search index of that history, rebuilt from it at any time, makes every agent's conversations searchable in one place. SicTerm calls no model or AI service itself. Its only network request of its own is to GitHub, to check for updates.
 
