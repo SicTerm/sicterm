@@ -1,8 +1,6 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/github/mark-ondark.svg">
-    <img src="docs/brand/github/mark-onlight.svg" alt="SicTerm" width="112" height="112">
-  </picture>
+  <img src="docs/brand/github/mark-onlight.svg#gh-light-mode-only" alt="SicTerm" width="112" height="112">
+  <img src="docs/brand/github/mark-ondark.svg#gh-dark-mode-only" alt="SicTerm" width="112" height="112">
 </p>
 
 # SicTerm

@@ -11,7 +11,7 @@ the wordmark in the shipped fonts (Assets\fonts: Sora for "Sic", Azeret Mono Lig
   and an account's to a circle, so the mark stays inside the inscribed circle.
 - social-preview.png, 1280 x 640: a repository's Settings -> General -> Social preview (GitHub asks for at least
   640 x 320, under 1 MB). Link previews crop its edges, so the mark and the words keep a wide margin.
-- mark-ondark.svg and mark-onlight.svg: the mark for a README, in a <picture> that follows GitHub's colour mode.
+- mark-ondark.svg and mark-onlight.svg: the mark for a README, shown by GitHub's theme through #gh-light-mode-only and #gh-dark-mode-only.
 Each PNG is rendered at exactly its size by headless Microsoft Edge, as Build-Icon.ps1 renders the icon's frames.
   .\scripts\Build-GitHubGraphics.ps1
 #>

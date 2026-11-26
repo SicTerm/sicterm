@@ -17,12 +17,15 @@ From a README at the repository root:
 
 ```html
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/github/mark-ondark.svg">
-    <img src="docs/brand/github/mark-onlight.svg" alt="SicTerm" width="128" height="128">
-  </picture>
+  <img src="docs/brand/github/mark-onlight.svg#gh-light-mode-only" alt="SicTerm" width="112" height="112">
+  <img src="docs/brand/github/mark-ondark.svg#gh-dark-mode-only" alt="SicTerm" width="112" height="112">
 </p>
 ```
+
+The `#gh-light-mode-only` and `#gh-dark-mode-only` endings make GitHub show one image or the other by the theme chosen in
+GitHub's own settings. A `<picture>` with `prefers-color-scheme` follows the browser's or Windows' mode instead, so a reader
+with Windows in dark mode and GitHub in light got the white `>_` on a white page. Outside github.com (an editor's Markdown
+preview, for one) both images show.
 
 The organization's own profile page (`profile/README.md` in a public repository named `.github` under SicTerm) needs the
 two SVGs copied into that repository, or full `https://raw.githubusercontent.com/...` links to a public copy. This
