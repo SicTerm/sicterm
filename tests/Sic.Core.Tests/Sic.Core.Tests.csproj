@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- The terminal tests run real consoles through the packaged console host, laid out as the app has it: conpty.dll at the
+         root of the output (which needs a runtime identifier) and OpenConsole.exe in x64\ and arm64\. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Windows.Console.ConPTY" />
+    <ProjectReference Include="../../src/Sic.Core/Sic.Core.csproj" />
+  </ItemGroup>
+</Project>

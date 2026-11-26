@@ -1,0 +1,43 @@
+// Catppuccin Mocha for SIC. terminal: github.com/catppuccin/windows-terminal mocha.json; chrome: the Catppuccin palette (base, mantle, crust, text, subtext0, overlay1, overlay0, mauve, green, yellow, red)
+{
+  "id": "catppuccin-mocha",
+  "name": "Catppuccin Mocha",
+  "family": "Catppuccin",
+  "light": false,
+  "chrome": {
+    "base": "#1E1E2E",
+    "rail": "#11111B",
+    "panel": "#181825",
+    "text": "#CDD6F4",
+    "textSecondary": "#A6ADC8",
+    "textTertiary": "#7F849C",
+    "neutral": "#6C7086",
+    "accent": "#CBA6F7",
+    "success": "#A6E3A1",
+    "warning": "#F9E2AF",
+    "danger": "#F38BA8"
+  },
+  "terminal": {
+    "name": "Catppuccin Mocha",
+    "background": "#1E1E2E",
+    "foreground": "#CDD6F4",
+    "cursorColor": "#F5E0DC",
+    "selectionBackground": "#585B70",
+    "black": "#45475A",
+    "red": "#F38BA8",
+    "green": "#A6E3A1",
+    "yellow": "#F9E2AF",
+    "blue": "#89B4FA",
+    "purple": "#F5C2E7",
+    "cyan": "#94E2D5",
+    "white": "#BAC2DE",
+    "brightBlack": "#585B70",
+    "brightRed": "#F38BA8",
+    "brightGreen": "#A6E3A1",
+    "brightYellow": "#F9E2AF",
+    "brightBlue": "#89B4FA",
+    "brightPurple": "#F5C2E7",
+    "brightCyan": "#94E2D5",
+    "brightWhite": "#A6ADC8"
+  }
+}

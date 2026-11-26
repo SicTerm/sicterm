@@ -1,0 +1,43 @@
+// Tokyo Night Storm for SIC. terminal: github.com/folke/tokyonight.nvim extras/windows_terminal/tokyonight_storm.json; chrome: the palette (bg, bg_dark, fg, fg_dark, comment, dark5, blue, green, yellow, red; extras/lua)
+{
+  "id": "tokyo-night-storm",
+  "name": "Tokyo Night Storm",
+  "family": "Tokyo Night",
+  "light": false,
+  "chrome": {
+    "base": "#24283B",
+    "rail": "#00000033",
+    "panel": "#1F2335",
+    "text": "#C0CAF5",
+    "textSecondary": "#A9B1D6",
+    "textTertiary": "#565F89",
+    "neutral": "#737AA2",
+    "accent": "#7AA2F7",
+    "success": "#9ECE6A",
+    "warning": "#E0AF68",
+    "danger": "#F7768E"
+  },
+  "terminal": {
+    "name": "Tokyo Night Storm",
+    "background": "#24283b",
+    "foreground": "#c0caf5",
+    "cursorColor": "#c0caf5",
+    "selectionBackground": "#2e3c64",
+    "black": "#1d202f",
+    "red": "#f7768e",
+    "green": "#9ece6a",
+    "yellow": "#e0af68",
+    "blue": "#7aa2f7",
+    "purple": "#bb9af7",
+    "cyan": "#7dcfff",
+    "white": "#a9b1d6",
+    "brightBlack": "#414868",
+    "brightRed": "#f7768e",
+    "brightGreen": "#9ece6a",
+    "brightYellow": "#e0af68",
+    "brightBlue": "#7aa2f7",
+    "brightPurple": "#9d7cd8",
+    "brightCyan": "#7dcfff",
+    "brightWhite": "#c0caf5"
+  }
+}

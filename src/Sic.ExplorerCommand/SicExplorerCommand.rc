@@ -1,0 +1,9 @@
+// Icons for Windows 11's own menu, which loads icons only from a PE resource ("path,-id"), not from an .ico file: SIC's mark in
+// both sets, and SIC's letter tile for each agent (built by scripts\Build-AgentIcons.ps1), shown where a tool's own icon is not
+// in its exe. The ids are ExplorerMenu.CommandIconIds in Sic.Core.
+1   ICON "..\\Sic.App\\Assets\\brand\\sic.ico"
+2   ICON "..\\Sic.App\\Assets\\brand\\sic-light.ico"
+101 ICON "..\\Sic.App\\Assets\\icons\\claude.ico"
+102 ICON "..\\Sic.App\\Assets\\icons\\codex.ico"
+103 ICON "..\\Sic.App\\Assets\\icons\\hermes.ico"
+104 ICON "..\\Sic.App\\Assets\\icons\\opencode.ico"

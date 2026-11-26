@@ -1,0 +1,43 @@
+// Catppuccin Frappé for SIC. terminal: github.com/catppuccin/windows-terminal frappe.json; chrome: the Catppuccin palette (base, mantle, crust, text, subtext0, overlay1, overlay0, mauve, green, yellow, red)
+{
+  "id": "catppuccin-frappe",
+  "name": "Catppuccin Frappé",
+  "family": "Catppuccin",
+  "light": false,
+  "chrome": {
+    "base": "#303446",
+    "rail": "#232634",
+    "panel": "#292C3C",
+    "text": "#C6D0F5",
+    "textSecondary": "#A5ADCE",
+    "textTertiary": "#838BA7",
+    "neutral": "#737994",
+    "accent": "#CA9EE6",
+    "success": "#A6D189",
+    "warning": "#E5C890",
+    "danger": "#E78284"
+  },
+  "terminal": {
+    "name": "Catppuccin Frappe",
+    "background": "#303446",
+    "foreground": "#C6D0F5",
+    "cursorColor": "#F2D5CF",
+    "selectionBackground": "#626880",
+    "black": "#51576D",
+    "red": "#E78284",
+    "green": "#A6D189",
+    "yellow": "#E5C890",
+    "blue": "#8CAAEE",
+    "purple": "#F4B8E4",
+    "cyan": "#81C8BE",
+    "white": "#B5BFE2",
+    "brightBlack": "#626880",
+    "brightRed": "#E78284",
+    "brightGreen": "#A6D189",
+    "brightYellow": "#E5C890",
+    "brightBlue": "#8CAAEE",
+    "brightPurple": "#F4B8E4",
+    "brightCyan": "#81C8BE",
+    "brightWhite": "#A5ADCE"
+  }
+}

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SIC's identity package: packaging with external location (docs/decisions/explorer-menu.md). It holds no files; registered
+     with the installed folder as its external location, it gives SicTerm.exe package identity, so File Explorer loads
+     SicExplorerCommand.dll for Windows 11's own right-click menu. Identity's Publisher is the signing certificate's subject,
+     exactly, and Name, Publisher and the Application Id match ExplorerMenu's constants; scripts\Build-IdentityPackage.ps1
+     checks that and fills in the version. Name was SIChat until October 13, 2026 (ExplorerMenu.FormerPackageIdentities).
+     unvirtualizedResources keeps AppData and the registry as the agents SIC starts expect them: nothing is redirected into a
+     package store. -->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+  xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+  xmlns:desktop5="http://schemas.microsoft.com/appx/manifest/desktop/windows10/5"
+  IgnorableNamespaces="uap uap10 rescap com desktop4 desktop5">
+  <Identity Name="SicTerm" Publisher="CN=Christopher Luton, O=Christopher Luton, L=Austin, S=tx, C=US" Version="SIC_PACKAGE_VERSION" ProcessorArchitecture="neutral" />
+  <Properties>
+    <DisplayName>SicTerm</DisplayName>
+    <PublisherDisplayName>Chris Luton</PublisherDisplayName>
+    <Logo>Assets\brand\sic-256.png</Logo>
+    <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
+  </Properties>
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="unvirtualizedResources" />
+  </Capabilities>
+  <Applications>
+    <Application Id="SIC" Executable="SicTerm.exe" uap10:TrustLevel="mediumIL" uap10:RuntimeBehavior="win32App">
+      <!-- AppListEntry none: Setup's own shortcuts list SicTerm; the identity package stays out of Start and Settings → Apps. -->
+      <uap:VisualElements AppListEntry="none" DisplayName="SicTerm" Description="SicTerm" BackgroundColor="transparent"
+        Square150x150Logo="Assets\brand\sic-256.png" Square44x44Logo="Assets\brand\sic-48.png" />
+      <Extensions>
+        <com:Extension Category="windows.comServer">
+          <com:ComServer>
+            <com:SurrogateServer DisplayName="Open in SicTerm">
+              <com:Class Id="4D6B3C9A-2F1E-4A8B-B7C5-0E9D1A2B3C4D" Path="SicExplorerCommand.dll" ThreadingModel="STA" />
+            </com:SurrogateServer>
+          </com:ComServer>
+        </com:Extension>
+        <desktop4:Extension Category="windows.fileExplorerContextMenus">
+          <desktop4:FileExplorerContextMenus>
+            <desktop5:ItemType Type="Directory">
+              <desktop5:Verb Id="OpenInSicFolder" Clsid="4D6B3C9A-2F1E-4A8B-B7C5-0E9D1A2B3C4D" />
+            </desktop5:ItemType>
+            <!-- No Drive: the schema allows only *, .ext, Directory and Directory\Background here, so a drive keeps the classic verb. -->
+            <desktop5:ItemType Type="Directory\Background">
+              <desktop5:Verb Id="OpenInSicBackground" Clsid="4D6B3C9A-2F1E-4A8B-B7C5-0E9D1A2B3C4D" />
+            </desktop5:ItemType>
+          </desktop4:FileExplorerContextMenus>
+        </desktop4:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+</Package>

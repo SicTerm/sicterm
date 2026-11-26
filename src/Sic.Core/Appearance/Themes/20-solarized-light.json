@@ -1,0 +1,44 @@
+// Solarized Light for SIC. terminal: the scheme built into Windows Terminal (defaults.json); chrome: Solarized base2, base3, base01, base00, base1, blue, green, yellow, red
+{
+  "id": "solarized-light",
+  "name": "Solarized Light",
+  "family": "Solarized",
+  "light": true,
+  "chrome": {
+    "base": "#EEE8D5",
+    "rail": "#00000014",
+    "panel": "#FDF6E3",
+    "text": "#586E75",
+    "textSecondary": "#657B83",
+    "textTertiary": "#93A1A1",
+    "neutral": "#93A1A1",
+    "accent": "#268BD2",
+    "accentText": "#FFFFFF",
+    "success": "#859900",
+    "warning": "#B58900",
+    "danger": "#DC322F"
+  },
+  "terminal": {
+    "name": "Solarized Light",
+    "background": "#FDF6E3",
+    "foreground": "#657B83",
+    "cursorColor": "#002B36",
+    "selectionBackground": "#2C4D57",
+    "black": "#002B36",
+    "red": "#DC322F",
+    "green": "#859900",
+    "yellow": "#B58900",
+    "blue": "#268BD2",
+    "purple": "#D33682",
+    "cyan": "#2AA198",
+    "white": "#EEE8D5",
+    "brightBlack": "#073642",
+    "brightRed": "#CB4B16",
+    "brightGreen": "#586E75",
+    "brightYellow": "#657B83",
+    "brightBlue": "#839496",
+    "brightPurple": "#6C71C4",
+    "brightCyan": "#93A1A1",
+    "brightWhite": "#FDF6E3"
+  }
+}

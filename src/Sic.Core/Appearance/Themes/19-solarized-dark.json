@@ -1,0 +1,43 @@
+// Solarized Dark for SIC. terminal: the scheme built into Windows Terminal (defaults.json); chrome: Solarized base03, base02, base1, base0, base01, blue, green, yellow, red
+{
+  "id": "solarized-dark",
+  "name": "Solarized Dark",
+  "family": "Solarized",
+  "light": false,
+  "chrome": {
+    "base": "#002B36",
+    "rail": "#00000026",
+    "panel": "#073642",
+    "text": "#93A1A1",
+    "textSecondary": "#839496",
+    "textTertiary": "#586E75",
+    "neutral": "#586E75",
+    "accent": "#268BD2",
+    "accentText": "#FFFFFF",
+    "success": "#859900",
+    "warning": "#B58900",
+    "danger": "#DC322F"
+  },
+  "terminal": {
+    "name": "Solarized Dark",
+    "background": "#002B36",
+    "foreground": "#839496",
+    "cursorColor": "#FFFFFF",
+    "black": "#002B36",
+    "red": "#DC322F",
+    "green": "#859900",
+    "yellow": "#B58900",
+    "blue": "#268BD2",
+    "purple": "#D33682",
+    "cyan": "#2AA198",
+    "white": "#EEE8D5",
+    "brightBlack": "#073642",
+    "brightRed": "#CB4B16",
+    "brightGreen": "#586E75",
+    "brightYellow": "#657B83",
+    "brightBlue": "#839496",
+    "brightPurple": "#6C71C4",
+    "brightCyan": "#93A1A1",
+    "brightWhite": "#FDF6E3"
+  }
+}

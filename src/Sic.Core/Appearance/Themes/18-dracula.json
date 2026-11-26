@@ -1,0 +1,42 @@
+// Dracula for SIC. terminal: github.com/dracula/windows-terminal dracula.json; chrome: the Dracula spec (background, the sidebar #21222C and border #191A21 of its editor themes, foreground, comment, purple, green, yellow, red)
+{
+  "id": "dracula",
+  "name": "Dracula",
+  "family": "Dracula",
+  "light": false,
+  "chrome": {
+    "base": "#282A36",
+    "rail": "#191A21",
+    "panel": "#21222C",
+    "text": "#F8F8F2",
+    "textTertiary": "#6272A4",
+    "neutral": "#6272A4",
+    "accent": "#BD93F9",
+    "success": "#50FA7B",
+    "warning": "#F1FA8C",
+    "danger": "#FF5555"
+  },
+  "terminal": {
+    "name": "Dracula",
+    "background": "#282A36",
+    "foreground": "#F8F8F2",
+    "cursorColor": "#F8F8F2",
+    "selectionBackground": "#44475A",
+    "black": "#21222C",
+    "red": "#FF5555",
+    "green": "#50FA7B",
+    "yellow": "#F1FA8C",
+    "blue": "#BD93F9",
+    "purple": "#FF79C6",
+    "cyan": "#8BE9FD",
+    "white": "#F8F8F2",
+    "brightBlack": "#6272A4",
+    "brightRed": "#FF6E6E",
+    "brightGreen": "#69FF94",
+    "brightYellow": "#FFFFA5",
+    "brightBlue": "#D6ACFF",
+    "brightPurple": "#FF92DF",
+    "brightCyan": "#A4FFFF",
+    "brightWhite": "#FFFFFF"
+  }
+}

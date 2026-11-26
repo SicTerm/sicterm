@@ -1,0 +1,43 @@
+// Tokyo Night Moon for SIC. terminal: github.com/folke/tokyonight.nvim extras/windows_terminal/tokyonight_moon.json; chrome: the palette (bg, bg_dark, fg, fg_dark, comment, dark5, blue, green, yellow, red; extras/lua)
+{
+  "id": "tokyo-night-moon",
+  "name": "Tokyo Night Moon",
+  "family": "Tokyo Night",
+  "light": false,
+  "chrome": {
+    "base": "#222436",
+    "rail": "#00000033",
+    "panel": "#1E2030",
+    "text": "#C8D3F5",
+    "textSecondary": "#828BB8",
+    "textTertiary": "#636DA6",
+    "neutral": "#737AA2",
+    "accent": "#82AAFF",
+    "success": "#C3E88D",
+    "warning": "#FFC777",
+    "danger": "#FF757F"
+  },
+  "terminal": {
+    "name": "Tokyo Night Moon",
+    "background": "#222436",
+    "foreground": "#c8d3f5",
+    "cursorColor": "#c8d3f5",
+    "selectionBackground": "#2d3f76",
+    "black": "#1b1d2b",
+    "red": "#ff757f",
+    "green": "#c3e88d",
+    "yellow": "#ffc777",
+    "blue": "#82aaff",
+    "purple": "#c099ff",
+    "cyan": "#86e1fc",
+    "white": "#828bb8",
+    "brightBlack": "#444a73",
+    "brightRed": "#ff757f",
+    "brightGreen": "#c3e88d",
+    "brightYellow": "#ffc777",
+    "brightBlue": "#82aaff",
+    "brightPurple": "#fca7ea",
+    "brightCyan": "#86e1fc",
+    "brightWhite": "#c8d3f5"
+  }
+}

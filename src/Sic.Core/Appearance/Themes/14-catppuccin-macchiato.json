@@ -1,0 +1,43 @@
+// Catppuccin Macchiato for SIC. terminal: github.com/catppuccin/windows-terminal macchiato.json; chrome: the Catppuccin palette (base, mantle, crust, text, subtext0, overlay1, overlay0, mauve, green, yellow, red)
+{
+  "id": "catppuccin-macchiato",
+  "name": "Catppuccin Macchiato",
+  "family": "Catppuccin",
+  "light": false,
+  "chrome": {
+    "base": "#24273A",
+    "rail": "#181926",
+    "panel": "#1E2030",
+    "text": "#CAD3F5",
+    "textSecondary": "#A5ADCB",
+    "textTertiary": "#8087A2",
+    "neutral": "#6E738D",
+    "accent": "#C6A0F6",
+    "success": "#A6DA95",
+    "warning": "#EED49F",
+    "danger": "#ED8796"
+  },
+  "terminal": {
+    "name": "Catppuccin Macchiato",
+    "background": "#24273A",
+    "foreground": "#CAD3F5",
+    "cursorColor": "#F4DBD6",
+    "selectionBackground": "#5B6078",
+    "black": "#494D64",
+    "red": "#ED8796",
+    "green": "#A6DA95",
+    "yellow": "#EED49F",
+    "blue": "#8AADF4",
+    "purple": "#F5BDE6",
+    "cyan": "#8BD5CA",
+    "white": "#B8C0E0",
+    "brightBlack": "#5B6078",
+    "brightRed": "#ED8796",
+    "brightGreen": "#A6DA95",
+    "brightYellow": "#EED49F",
+    "brightBlue": "#8AADF4",
+    "brightPurple": "#F5BDE6",
+    "brightCyan": "#8BD5CA",
+    "brightWhite": "#A5ADCB"
+  }
+}

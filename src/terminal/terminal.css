@@ -1,0 +1,30 @@
+html,body{height:100%;width:100%;margin:0;overflow:hidden;background:#0f1722;color:#eaf2ff}
+#terminal{position:absolute;inset:8px 12px}
+/* The fonts Settings offers beyond Windows' own (fonts/README.md, docs/decisions/terminal-fonts.md), regular and bold. Loaded
+   when a pane asks for one, before the terminal measures it (setFont in terminal.ts). */
+@font-face{font-family:"JetBrains Mono";src:url(fonts/JetBrainsMono-Regular.woff2) format("woff2");font-weight:400;font-display:block}
+@font-face{font-family:"JetBrains Mono";src:url(fonts/JetBrainsMono-Bold.woff2) format("woff2");font-weight:700;font-display:block}
+@font-face{font-family:"Fira Code";src:url(fonts/FiraCode-Regular.woff2) format("woff2");font-weight:400;font-display:block}
+@font-face{font-family:"Fira Code";src:url(fonts/FiraCode-Bold.woff2) format("woff2");font-weight:700;font-display:block}
+/* IBM Plex Mono's line box (1025 above the baseline, 275 below) sits 75 units above its block and box-drawing glyphs (950 and
+   350), which left a strip between rows of blocks and broke vertical lines; the line box is set to those glyphs instead. */
+@font-face{font-family:"IBM Plex Mono";src:url(fonts/IBMPlexMono-Regular.woff2) format("woff2");font-weight:400;font-display:block;ascent-override:95%;descent-override:35%;line-gap-override:0%}
+@font-face{font-family:"IBM Plex Mono";src:url(fonts/IBMPlexMono-Bold.woff2) format("woff2");font-weight:700;font-display:block;ascent-override:95%;descent-override:35%;line-gap-override:0%}
+@font-face{font-family:"Victor Mono";src:url(fonts/VictorMono-Regular.woff2) format("woff2");font-weight:400;font-display:block}
+@font-face{font-family:"Victor Mono";src:url(fonts/VictorMono-Bold.woff2) format("woff2");font-weight:700;font-display:block}
+/* A terminal draws what was sent: no ligatures, so "!=" stays two cells as typed in a font that would join them. */
+.xterm .xterm-rows{font-variant-ligatures:none;font-feature-settings:"liga" 0,"calt" 0}
+.xterm{height:100%;outline:none}
+.xterm .xterm-viewport{background-color:var(--terminal-background,#0f1722);overflow-x:hidden!important;scrollbar-width:thin;scrollbar-color:#6d819d transparent}
+.xterm .xterm-viewport::-webkit-scrollbar{width:8px;height:0}
+.xterm .xterm-viewport::-webkit-scrollbar:horizontal{display:none}
+.xterm .xterm-viewport::-webkit-scrollbar-track{background:transparent}
+.xterm .xterm-viewport::-webkit-scrollbar-thumb{background:#676767;border-radius:4px}
+.xterm .xterm-screen{outline:none}
+/* Windows animation effects off: nothing moves except the cursor blink, which xterm draws as a CSS animation on this class.
+   The blink follows its Settings switch here (on by default; off for a steady cursor), not Windows' animation setting:
+   Windows keeps the caret's blink under its own setting, the cursor blink rate, and Windows Terminal's cursor does the same.
+   With the switch off, a blink a program asks for itself is stopped too; the body class mirrors the switch. */
+@media(prefers-reduced-motion:reduce){*{transition:none!important}*:not(.xterm-cursor-blink),body:not(.cursor-blink) .xterm-cursor-blink{animation:none!important}}
+/* A drag the terminal will take: an accent line just inside the pane's edges, in the margin around the cells, so it covers none of them. */
+body.drop-target::after{content:'';position:fixed;inset:0;border:2px solid var(--terminal-accent,#4cc2ff);pointer-events:none;z-index:20}

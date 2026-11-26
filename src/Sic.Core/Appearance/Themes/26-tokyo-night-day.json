@@ -1,0 +1,44 @@
+// Tokyo Night Day for SIC. terminal: github.com/folke/tokyonight.nvim extras/windows_terminal/tokyonight_day.json; chrome: the day palette (bg, bg_dark1, bg_dark, fg, fg_dark, comment, dark3, blue, green, yellow, red; extras/lua)
+{
+  "id": "tokyo-night-day",
+  "name": "Tokyo Night Day",
+  "family": "Tokyo Night",
+  "light": true,
+  "chrome": {
+    "base": "#E1E2E7",
+    "rail": "#C1C9DF",
+    "panel": "#D0D5E3",
+    "text": "#3760BF",
+    "textSecondary": "#6172B0",
+    "textTertiary": "#848CB5",
+    "neutral": "#8990B3",
+    "accent": "#2E7DE9",
+    "accentText": "#FFFFFF",
+    "success": "#587539",
+    "warning": "#8C6C3E",
+    "danger": "#F52A65"
+  },
+  "terminal": {
+    "name": "Tokyo Night Day",
+    "background": "#e1e2e7",
+    "foreground": "#3760bf",
+    "cursorColor": "#3760bf",
+    "selectionBackground": "#b7c1e3",
+    "black": "#b4b5b9",
+    "red": "#f52a65",
+    "green": "#587539",
+    "yellow": "#8c6c3e",
+    "blue": "#2e7de9",
+    "purple": "#9854f1",
+    "cyan": "#007197",
+    "white": "#6172b0",
+    "brightBlack": "#a1a6c5",
+    "brightRed": "#f52a65",
+    "brightGreen": "#587539",
+    "brightYellow": "#8c6c3e",
+    "brightBlue": "#2e7de9",
+    "brightPurple": "#7847bd",
+    "brightCyan": "#007197",
+    "brightWhite": "#3760bf"
+  }
+}

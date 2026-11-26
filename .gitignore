@@ -1,0 +1,13 @@
+**/bin/
+**/obj/
+**/node_modules/
+artifacts/
+.vs/
+*.user
+*.suo
+*.log
+TestResults/
+src/Sic.App/Assets/terminal/
+.claude/settings.local.json
+.claude/worktrees/
+CLAUDE.md

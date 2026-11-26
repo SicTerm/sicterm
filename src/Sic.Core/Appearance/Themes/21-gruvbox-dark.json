@@ -1,0 +1,43 @@
+// Gruvbox Dark for SIC. terminal: github.com/mbadolato/iTerm2-Color-Schemes windowsterminal/Gruvbox Dark.json; chrome: Gruvbox bg0, bg0_h, bg1, fg1, fg2, fg4, gray, bright orange, bright green, bright yellow, bright red
+{
+  "id": "gruvbox-dark",
+  "name": "Gruvbox Dark",
+  "family": "Gruvbox",
+  "light": false,
+  "chrome": {
+    "base": "#282828",
+    "rail": "#1D2021",
+    "panel": "#3C3836",
+    "text": "#EBDBB2",
+    "textSecondary": "#D5C4A1",
+    "textTertiary": "#A89984",
+    "neutral": "#928374",
+    "accent": "#FE8019",
+    "success": "#B8BB26",
+    "warning": "#FABD2F",
+    "danger": "#FB4934"
+  },
+  "terminal": {
+    "name": "Gruvbox Dark",
+    "background": "#282828",
+    "foreground": "#ebdbb2",
+    "cursorColor": "#ebdbb2",
+    "selectionBackground": "#665c54",
+    "black": "#282828",
+    "red": "#cc241d",
+    "green": "#98971a",
+    "yellow": "#d79921",
+    "blue": "#458588",
+    "purple": "#b16286",
+    "cyan": "#689d6a",
+    "white": "#a89984",
+    "brightBlack": "#928374",
+    "brightRed": "#fb4934",
+    "brightGreen": "#b8bb26",
+    "brightYellow": "#fabd2f",
+    "brightBlue": "#83a598",
+    "brightPurple": "#d3869b",
+    "brightCyan": "#8ec07c",
+    "brightWhite": "#ebdbb2"
+  }
+}

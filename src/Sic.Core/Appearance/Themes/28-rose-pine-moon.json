@@ -1,0 +1,43 @@
+// Rosé Pine Moon for SIC. terminal: github.com/rose-pine/windows-terminal rose-pine-moon.scheme.json; chrome: the palette (base, overlay, surface, text, subtle, muted, rose, pine, gold, love)
+{
+  "id": "rose-pine-moon",
+  "name": "Rosé Pine Moon",
+  "family": "Rosé Pine",
+  "light": false,
+  "chrome": {
+    "base": "#232136",
+    "rail": "#393552",
+    "panel": "#2A273F",
+    "text": "#E0DEF4",
+    "textSecondary": "#908CAA",
+    "textTertiary": "#6E6A86",
+    "neutral": "#6E6A86",
+    "accent": "#EA9A97",
+    "success": "#3E8FB0",
+    "warning": "#F6C177",
+    "danger": "#EB6F92"
+  },
+  "terminal": {
+    "name": "rose-pine-moon",
+    "background": "#232136",
+    "foreground": "#e0def4",
+    "cursorColor": "#6e6a86",
+    "selectionBackground": "#44415a",
+    "black": "#393552",
+    "red": "#eb6f92",
+    "green": "#3e8fb0",
+    "yellow": "#f6c177",
+    "blue": "#9ccfd8",
+    "purple": "#c4a7e7",
+    "cyan": "#ea9a97",
+    "white": "#e0def4",
+    "brightBlack": "#908caa",
+    "brightRed": "#eb6f92",
+    "brightGreen": "#3e8fb0",
+    "brightYellow": "#f6c177",
+    "brightBlue": "#9ccfd8",
+    "brightPurple": "#c4a7e7",
+    "brightCyan": "#ea9a97",
+    "brightWhite": "#e0def4"
+  }
+}

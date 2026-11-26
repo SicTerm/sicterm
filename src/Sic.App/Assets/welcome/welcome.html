@@ -1,0 +1,1081 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SicTerm welcome</title>
+<style>
+/* The fonts SicTerm ships in Assets\fonts, which the host maps beside this page: Sora for headings and the wordmark's "Sic",
+   Azeret Mono for its "Term". Both are variable, so one file gives every weight. */
+@font-face { font-family: "Sora"; src: url("../fonts/Sora.ttf") format("truetype"); font-weight: 100 800; }
+@font-face { font-family: "Azeret Mono"; src: url("../fonts/AzeretMono.ttf") format("truetype"); font-weight: 100 900; }
+/* The first-run film and card (docs/decisions/first-run.md). The chrome's colors arrive in the host's init message and set
+   these variables; the values here are SicTerm Dark, for a page that is shown before the message lands. The miniature's
+   terminals keep the fixed dark palette, as the app's do, and so do the film's desktop and its dark screen: the captions
+   over them keep the film's own light ink under every theme, since a light theme's text is dark grey. The miniature's tab
+   strip and status bar take the strip ink, the color the real strip picks for its titles on the rail color. */
+:root {
+  --base: #01263E; --rail: #011E32; --panel: #003050; --layer: rgba(255,255,255,.06); --hover: rgba(255,255,255,.08);
+  --stroke: rgba(136,202,223,.15); --stroke-strong: rgba(136,202,223,.25);
+  --text: #FFFFFF; --text2: #88CADF; --text3: rgba(136,202,223,.7); --strip-text: #FFFFFF;
+  --film-text: #FFFFFF; --film-text2: #CFE6EF;
+  --accent: #009DC1; --accent-ink: #01263E; --accent-soft: rgba(0,157,193,.2);
+  --term: #011726; --ok: #5FC27A; --warn: #F2C55E; --danger: #F0736A;
+  --h-hermes: #E3B341; --h-claude: #F0A47E; --h-codex: #5FD1B2; --h-opencode: #B9A3F0;
+  --display: Sora, "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --wordmark-term: "Azeret Mono", "Cascadia Mono", Consolas, monospace;
+  --body: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --mono: "Cascadia Mono", Consolas, monospace;
+  --ease-out: cubic-bezier(.1,.9,.2,1); --ease-in: cubic-bezier(.7,0,1,.5);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body { background: var(--base); color: var(--text); font-family: var(--body); font-size: 13px; -webkit-font-smoothing: antialiased; user-select: none; cursor: default; }
+button { font: inherit; color: inherit; cursor: pointer; }
+svg { display: block; }
+[hidden] { display: none !important; }
+button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+
+/* the stage: the film's own frame, 812×662, scaled to the window's tab area */
+.stage { position: absolute; left: 50%; top: 50%; width: 812px; height: 662px; transform: translate(-50%, -50%); transform-origin: 50% 50%; }
+.film { position: absolute; inset: 0; z-index: 1; transition: filter .5s; }
+.film.ambient { filter: brightness(.42) saturate(.75); }
+.film.ambient .cap { visibility: hidden; }
+.desk { position: absolute; inset: 0; background: radial-gradient(70% 60% at 30% 35%, rgba(0,104,150,.45), transparent 60%), radial-gradient(50% 50% at 75% 70%, rgba(0,157,193,.25), transparent 60%), linear-gradient(160deg, #04263E, #011A2C 70%); opacity: 0; transform: scaleY(.004); transition: transform .35s var(--ease-out), opacity .15s; }
+.desk.on { opacity: 1; transform: none; }
+.desk.off { transition: transform .3s var(--ease-in), opacity .12s .22s; transform: scaleY(.004); opacity: 0; }
+.taskbar { position: absolute; left: 0; right: 0; bottom: 0; height: 30px; background: rgba(0,0,0,.38); display: flex; justify-content: center; align-items: center; gap: 10px; }
+.taskbar i { width: 16px; height: 16px; border-radius: 4px; background: rgba(255,255,255,.14); display: block; }
+.tbtn { width: 28px; height: 28px; border-radius: 4px; display: grid; place-items: center; position: relative; transition: background .2s; }
+.tbtn.hover { background: rgba(255,255,255,.12); }
+.tbtn.run::after { content: ""; position: absolute; left: 6px; right: 6px; bottom: 1px; height: 2px; border-radius: 1px; background: var(--accent); }
+.led { position: absolute; left: 50%; bottom: 44px; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 50%; background: rgba(136,219,223,.12); transition: background .3s, box-shadow .3s; z-index: 9; }
+.led.on { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+.cap { position: absolute; left: 24px; right: 24px; top: 26px; text-align: center; font-family: var(--display); font-weight: 700; font-size: 26px; line-height: 1.2; color: var(--film-text); text-shadow: 0 2px 14px rgba(0,0,0,.65); opacity: 0; transform: translateY(8px); transition: opacity .35s var(--ease-out), transform .35s var(--ease-out); pointer-events: none; z-index: 8; text-wrap: balance; }
+.cap.in { opacity: 1; transform: none; }
+/* a second sentence under the first, arriving on its own while the first stays */
+.cap .l { opacity: 0; transform: translateY(8px); transition: opacity .4s var(--ease-out), transform .4s var(--ease-out); }
+.cap .l.in { opacity: 1; transform: none; }
+.cap .l + .l { margin-top: 10px; }
+.cap.dark { top: auto; bottom: 84px; font-size: 22px; font-weight: 600; color: var(--film-text2); z-index: 10; }
+/* while the window fills the display, the caption moves down over the panes' empty lower half */
+.cap.low { top: auto; bottom: 110px; }
+.mini { position: absolute; left: 50%; top: 92px; width: 760px; height: 440px; margin-left: -380px; background: var(--base); border: 1px solid var(--stroke-strong); border-radius: 6px; box-shadow: 0 16px 40px rgba(0,0,0,.45); overflow: hidden; display: grid; grid-template-columns: 24px 0 1fr; grid-template-rows: 20px 1fr 16px; transition: transform .45s var(--ease-out), opacity .35s, width .9s var(--ease-out), height .9s var(--ease-out), top .9s var(--ease-out), margin-left .9s var(--ease-out), grid-template-columns .6s var(--ease-out), grid-template-rows .6s var(--ease-out), border-radius .6s; z-index: 2; }
+.mini.closed { transform: translateY(250px) scale(.12); opacity: 0; transition: transform .4s var(--ease-in), opacity .25s .12s; }
+/* the day opens on a window already open and running: it fades in where it stands, instead of growing out of the taskbar */
+.mini.unseen { opacity: 0; }
+/* F11: the window fills the display, over the taskbar, and its rail leaves its edge */
+.mini.full { width: 812px; height: 662px; top: 0; margin-left: -406px; border-radius: 0; grid-template-columns: 0 0 1fr; }
+/* the side panel open beside the rail (Sessions or Agent Workspaces), at half the real panel's width */
+.mini.panel { grid-template-columns: 24px 168px 1fr; }
+/* Settings → Side Panel: Right puts the rail, and the panel beside it, on the right edge. Settings → Tabs: Bottom runs the tab
+   bar above the status bar, each tab turned over and each pane's header under its terminal, as the real window does. */
+.mini.right { grid-template-columns: 1fr 0 24px; }
+.mini.right.panel { grid-template-columns: 1fr 168px 24px; }
+.mini.right.full { grid-template-columns: 1fr 0 0; }
+/* in full screen the pointer at the display's edge slides the sidebar in over the panes, which stay where they are */
+.mini.full .mrail { position: absolute; left: 0; top: 0; bottom: 0; width: 24px; z-index: 5; transform: translateX(-100%); transition: transform .3s var(--ease-out); box-shadow: 4px 0 12px rgba(0,0,0,.35); }
+.mini.right.full .mrail { left: auto; right: 0; transform: translateX(100%); box-shadow: -4px 0 12px rgba(0,0,0,.35); }
+.mini.full.reveal .mrail { transform: none; }
+.mini.right .mrail { grid-column: 3; } .mini.right .mpanel { grid-column: 2; border-right: 0; border-left: 1px solid var(--stroke); }
+.mini.right .mstrip, .mini.right .mbody, .mini.right .mstatus { grid-column: 1; }
+.mini.right .mnotice { left: 0; right: 24px; }
+.mini.bottom { grid-template-rows: 1fr 20px 16px; }
+.mini.bottom .mstrip { grid-row: 2; align-items: flex-start; border-top: 1px solid var(--stroke); } .mini.bottom .mbody { grid-row: 1; }
+.mini.bottom .mtab { border-radius: 0 0 4px 4px; } .mini.bottom .mtab.colored::before { top: auto; bottom: 0; border-radius: 0 0 4px 4px; }
+.mini.bottom .mpane { flex-direction: column-reverse; justify-content: flex-end; }
+.mini.bottom .mnotice { bottom: 36px; } .mini.bottom .mnotice:not(.in) { transform: translateY(calc(100% + 36px)); }
+.mrail { grid-row: 1 / 4; grid-column: 1; background: var(--rail); display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 5px 0 4px; overflow: hidden; }
+.mrail .rmark { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); margin-bottom: 5px; flex: none; }
+.mrail .grow { flex: 1; }
+/* the rail's buttons, as the real rail has them: Agent Workspaces, Folders and Sessions above; New session, Resume all, Consolidate tabs and
+   Settings below. Resume all and Consolidate tabs take the accent while they have something to do, as the real ones do. A
+   caption that names one rings it, and the pointer clicks it as its key goes down beside it. */
+.rb { width: 20px; height: 20px; border-radius: 3px; display: grid; place-items: center; flex: none; color: color-mix(in srgb, var(--strip-text) 50%, transparent); transition: background .2s, color .3s, transform .1s; }
+.rb svg { width: 12px; height: 12px; }
+.rb.lit { color: var(--accent); }
+.rb.hover { background: color-mix(in srgb, var(--strip-text) 10%, transparent); }
+.rb.press { background: color-mix(in srgb, var(--strip-text) 16%, transparent); transform: scale(.9); }
+.rb.mark { animation: ring 1.4s ease-in-out infinite; }
+.rb.on { background: color-mix(in srgb, var(--strip-text) 12%, transparent); }
+/* the side panel: Sessions, with its search box and its rows, or Folders, with its rows and the chosen folder's card (its menu's emoji, color and sound).
+   Its content keeps the open width, so the column slides over it. */
+.mpanel { grid-row: 1 / 4; grid-column: 2; background: var(--panel); border-right: 1px solid var(--stroke); overflow: hidden; min-width: 0; }
+.mpanel .inner { width: 168px; height: 100%; display: flex; flex-direction: column; animation: fadein .25s; }
+.mpanel .hd { height: 20px; display: flex; align-items: center; padding: 0 8px; font-size: 9px; font-weight: 600; color: var(--text); flex: none; }
+.mpanel .hd .x { margin-left: auto; width: 14px; height: 14px; border-radius: 3px; display: grid; place-items: center; font-size: 8px; color: var(--text3); transition: background .2s, color .2s; }
+.mpanel .hd .x.hover { background: var(--hover); color: var(--text); }
+.mpanel .srch { margin: 2px 8px 4px; height: 16px; border: 1px solid var(--stroke-strong); border-radius: 3px; background: var(--layer); display: flex; align-items: center; padding: 0 5px; font-size: 8px; color: var(--text3); white-space: nowrap; transition: border-color .2s, box-shadow .2s; }
+.mpanel .srch .q { color: var(--text); }
+.mpanel .srch .caret { width: 1px; height: 9px; background: var(--text); opacity: 0; margin: 0 1px; }
+.mpanel .srch.focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.mpanel .srch.focus .caret { opacity: 1; animation: blink 1s steps(1) infinite; }
+.mpanel .srch.typed .hint { display: none; }
+.mpanel .srch .ico { margin-left: auto; width: 9px; height: 9px; }
+.mpanel .cnt { padding: 0 8px 3px; font-size: 7px; color: var(--text3); white-space: nowrap; }
+.mpanel .lbl { padding: 4px 8px 1px; font-size: 7px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text3); }
+.mpanel .row { display: flex; align-items: center; gap: 5px; padding: 0 8px; height: 24px; overflow: hidden; transition: height .3s var(--ease-out), opacity .3s, background .2s; }
+.mpanel .row.f { height: 20px; }
+.mpanel .row.hide { height: 0; opacity: 0; }
+.mpanel .row.hover { background: var(--hover); }
+.mpanel .row.press, .mpanel .row.sel { background: var(--layer); }
+.mpanel .row .tile { width: 11px; height: 11px; font-size: 7px; border-radius: 2px; flex: none; }
+.mpanel .row .e, .mpanel .row .fi { width: 11px; flex: none; font-size: 9px; text-align: center; color: var(--accent); }
+.mpanel .row .fi svg { width: 10px; height: 10px; margin: 0 auto; }
+.mpanel .row .t { min-width: 0; flex: 1; }
+.mpanel .row .n { font-size: 8px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mpanel .row .s { font-size: 6.5px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mpanel .row .pin { width: 10px; height: 10px; flex: none; color: var(--text3); opacity: 0; transition: opacity .2s, color .2s; }
+.mpanel .row .pin svg { width: 10px; height: 10px; }
+.mpanel .row.hover .pin, .mpanel .row.sel .pin { opacity: .8; }
+.mpanel .row .pin.hover { color: var(--text); }
+.mpanel .row .pin.on, .mpanel .row.pinned .pin { opacity: 1; color: var(--accent); }
+.mstrip { grid-row: 1; grid-column: 3; background: var(--rail); display: flex; align-items: flex-end; padding-left: 2px; gap: 1px; overflow: hidden; }
+.mtab { height: 16px; display: flex; align-items: center; gap: 4px; padding: 0 6px 0 5px; border-radius: 4px 4px 0 0; font-size: 9px; color: var(--strip-text); opacity: .72; background: color-mix(in srgb, var(--strip-text) 4%, transparent); white-space: nowrap; position: relative; transform: translateY(-6px); transition: opacity .25s var(--ease-out), transform .25s var(--ease-out), background .3s; max-width: 86px; opacity: 0; }
+.mtab.in { opacity: .78; transform: none; }
+.mtab.in.sel { opacity: 1; }
+.mtab.lift { opacity: .3; }
+.mtab.sel { background: color-mix(in srgb, var(--strip-text) 11%, transparent); }
+/* F6: the tabs that share a folder are ringed while the caption names them, then two slide into the first (--dx away) and close */
+.mtab.mark { opacity: 1; animation: ring 1.4s ease-in-out infinite; }
+.mtab.join { transform: translateX(var(--dx)) scale(.55); opacity: .35; transition: transform .75s var(--ease-in), opacity .75s; }
+.mtab .tile { width: 10px; height: 10px; font-size: 7px; border-radius: 2px; }
+.mtab .n { overflow: hidden; text-overflow: ellipsis; }
+.mtab .d { width: 6px; height: 6px; border-radius: 50%; background: color-mix(in srgb, var(--strip-text) 45%, transparent); flex: none; transition: background .3s; }
+.mtab.working .d { width: 7px; height: 7px; background: none; border: 1.5px solid var(--accent-soft); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+.mtab.rest .d { background: var(--ok); }
+/* Your turn: the agent has finished and waits; the dot blinks in the warning color, dimming off the beat as the real one does */
+.mtab.ready .d { background: var(--warn); animation: blink 1.2s steps(1) infinite; }
+.mtab.hover { background: color-mix(in srgb, var(--strip-text) 8%, transparent); }
+.mtab.ph .d { background: none; border: 1px solid color-mix(in srgb, var(--strip-text) 50%, transparent); }
+.mtab.off .d { background: color-mix(in srgb, var(--strip-text) 12%, transparent); border: 0; animation: none; }
+.mtab.colored::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--tc); border-radius: 4px 4px 0 0; }
+.mtab.colored.sel { background: color-mix(in srgb, var(--tc) 30%, color-mix(in srgb, var(--strip-text) 11%, transparent)); }
+.mtab.gone { opacity: 0; transform: translateY(10px) scale(.8); max-width: 0; padding: 0; margin: 0; transition: all .45s var(--ease-in); }
+.mtab.join.gone { transform: translateX(var(--dx)) scale(.4); }
+.mbody { grid-row: 2; grid-column: 3; position: relative; overflow: hidden; display: grid; gap: 1px; background: var(--stroke); }
+.mpane { background: var(--term); display: flex; flex-direction: column; min-height: 0; min-width: 0; opacity: 0; transition: opacity .4s; }
+.mpane.in { opacity: 1; }
+/* a placeholder's Resume conversation button under the pointer */
+.rbtn { transition: filter .15s; } .rbtn.hover { filter: brightness(1.2); } .rbtn.press { filter: brightness(.85); }
+.mph { height: 14px; background: rgba(255,255,255,.11); display: flex; align-items: center; gap: 5px; padding: 0 6px; font-size: 8.5px; color: rgba(255,255,255,.85); flex: none; transition: background .4s; }
+.mph .tile { width: 9px; height: 9px; font-size: 6.5px; border-radius: 2px; }
+.mph .f { color: rgba(255,255,255,.6); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mph .grow { flex: 1; }
+.mph .ctx { display: none; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+.mph .ctx.on { display: flex; }
+.mph .d { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); flex: none; }
+.gl { display: flex; flex-direction: column; gap: 5px; padding: 7px 8px; overflow: hidden; }
+.gl i { display: block; height: 4px; border-radius: 2px; background: rgba(136,219,223,.22); opacity: .5; }
+.gl i.k { background: rgba(240,164,126,.35); }
+/* the pane's body: the skeleton pulses while the session loads (about a second), then the session's own transcript prints,
+   line by line, and ends at the prompt with its caret (idle) or on the agent's current step with a spinner (working) */
+.mpane.loading .gl i { animation: ghost 1.2s ease-in-out infinite; }
+.mpane.loading .gl i:nth-child(2n) { animation-delay: .15s; } .mpane.loading .gl i:nth-child(3n) { animation-delay: .3s; } .mpane.loading .gl i:nth-child(5n) { animation-delay: .5s; }
+.mpane.live .gl { display: none; }
+.mpane .tx { display: none; padding: 6px 8px; font: 7.5px/11px var(--mono); color: rgba(255,255,255,.82); overflow: hidden; }
+.mpane.live .tx { display: block; }
+.tx .ln { opacity: 0; animation: lineIn .25s forwards; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tx .ln + .ln { margin-top: 2px; }
+.tx .u { color: #fff; font-weight: 600; }
+.tx .u::before, .tx .c::before { content: "› "; color: var(--h, var(--accent)); font-weight: 700; }
+.tx .a { color: rgba(255,255,255,.78); padding-left: 9px; }
+.tx .t { color: rgba(255,255,255,.5); padding-left: 9px; }
+.tx .t::before { content: "● "; color: var(--h, var(--accent)); }
+.tx .w { color: rgba(255,255,255,.7); padding-left: 9px; display: flex; align-items: center; gap: 4px; }
+.tx .w i { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--accent-soft); border-top-color: var(--accent); animation: spin .8s linear infinite; flex: none; }
+.tx .c i { display: inline-block; width: 5px; height: 9px; background: #fff; vertical-align: -1px; animation: blink 1s steps(1) infinite; }
+.mpane.working .mph .d { background: none; border: 1.5px solid var(--accent-soft); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+.mstatus { grid-row: 3; grid-column: 3; background: var(--rail); border-top: 1px solid var(--stroke); display: flex; align-items: center; gap: 7px; padding: 0 8px; font-size: 8.5px; color: var(--strip-text); position: relative; }
+.mstatus .grow { flex: 1; }
+.meter { display: none; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+.meter.on { display: flex; }
+.meter .lab { opacity: .7; }
+.track { width: 30px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.14); position: relative; overflow: visible; }
+.track .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 2px; background: var(--ok); transition: width 1.1s var(--ease-out), background .4s; }
+.track .tick { position: absolute; top: -2px; bottom: -2px; width: 1px; background: rgba(255,255,255,.7); }
+.mstatus .track { background: color-mix(in srgb, var(--strip-text) 14%, transparent); }
+.mstatus .track .tick { background: color-mix(in srgb, var(--strip-text) 70%, transparent); }
+/* a label on a part of the window with a line to it (the gauges, at the first look): 'up' hangs under the part, 'down' stands over it */
+.callout { position: absolute; z-index: 6; background: #061B29; color: #fff; border: 1px solid var(--accent); border-radius: 4px; padding: 2px 7px; font: 600 9px var(--body); white-space: nowrap; opacity: 0; transition: opacity .3s; pointer-events: none; }
+.callout.in { opacity: 1; }
+.callout::before { content: ""; position: absolute; left: var(--lx, 50%); width: 1px; height: 12px; background: var(--accent); }
+.callout.up::before { bottom: 100%; } .callout.down::before { top: 100%; }
+.mph .ctx.hl, .meter.hl { box-shadow: 0 0 0 1.5px var(--accent); border-radius: 3px; }
+.mnotice { position: absolute; left: 24px; right: 0; bottom: 16px; height: 24px; background: #2A3B1C; color: #fff; font-size: 9.5px; display: flex; align-items: center; gap: 8px; padding: 0 10px; transform: translateY(calc(100% + 16px)); transition: transform .2s var(--ease-out); z-index: 3; }
+.mnotice.in { transform: none; }
+.mnotice i { width: 12px; height: 12px; border-radius: 50%; background: #6CCB5F; color: #11290d; display: grid; place-items: center; font-size: 9px; font-style: normal; font-weight: 700; }
+.mnotice b { font-weight: 600; }
+.mnotice .x { margin-left: auto; opacity: .7; }
+.mcard { position: absolute; left: 60px; top: 90px; width: 236px; background: var(--panel); border: 1px solid var(--stroke-strong); border-radius: 6px; padding: 8px 10px; font-size: 9px; box-shadow: 0 10px 24px rgba(0,0,0,.45); opacity: 0; transform: translateY(8px); transition: opacity .3s, transform .3s var(--ease-out); z-index: 4; }
+.mcard.in { opacity: 1; transform: none; }
+.mcard .n { font-weight: 600; font-size: 11px; display: flex; align-items: center; gap: 6px; }
+.mcard .n .e { min-width: 12px; }
+.mcard .p { color: var(--text2); font-family: var(--mono); font-size: 8px; margin: 2px 0 6px; }
+.mcard .acts { display: flex; gap: 6px; align-items: center; }
+.mcard .acts span { width: 22px; height: 18px; border-radius: 3px; background: var(--layer); display: grid; place-items: center; font-size: 10px; transition: background .3s, box-shadow .3s; position: relative; }
+.mcard .acts span.hot { background: var(--accent-soft); box-shadow: 0 0 0 2px var(--accent); }
+.mcard .acts .sw { width: 10px; height: 10px; border-radius: 50%; background: var(--tc, #3E699A); }
+.mcard .acts svg { width: 11px; height: 11px; }
+.mcard .acts .wave { position: absolute; left: 100%; top: 50%; margin-left: 6px; transform: translateY(-50%); font-size: 9px; color: var(--accent); opacity: 0; transition: opacity .2s; white-space: nowrap; }
+.mcard .acts span.hot .wave { opacity: 1; animation: blink .5s steps(1) 3; }
+.mpanel .mcard { position: relative; left: auto; top: auto; width: auto; margin: 6px 8px 0; }
+/* Settings: a choice per row, its name small over its value, and the folder, Reload and Copy buttons under the Theme row */
+.mpanel .row.set { height: 26px; } .mpanel .row.set .s { font-size: 6.5px; } .mpanel .row.set .n { font-size: 8.5px; }
+.mpanel .row.set .chev { font-size: 8px; color: var(--text3); flex: none; }
+.mpanel .tools { display: flex; gap: 4px; padding: 2px 8px 4px; }
+.mpanel .tools span { font-size: 6.5px; padding: 1px 5px; border-radius: 3px; background: var(--layer); color: var(--text2); }
+/* the key cap, placed beside the rail button the pointer is clicking (click) */
+.key { position: absolute; left: 38px; top: 300px; width: 56px; height: 56px; border-radius: 10px; background: linear-gradient(#FFFFFF, #DCE4EA); color: #01263E; font: 700 19px var(--display); display: grid; place-items: center; box-shadow: 0 6px 0 #9AB0B6, 0 14px 28px rgba(0,0,0,.5); opacity: 0; transform: translateY(-10px); transition: opacity .25s, transform .12s; z-index: 5; }
+.key.in { opacity: 1; transform: none; }
+.key.down { transform: translateY(5px); box-shadow: 0 1px 0 #9AABB6, 0 4px 10px rgba(0,0,0,.45); }
+.key.out { opacity: 0; transition: opacity .3s; }
+.cursor { position: absolute; left: 400px; top: 300px; width: 14px; height: 20px; z-index: 12; opacity: 0; transition: left .8s var(--ease-out), top .8s var(--ease-out), opacity .2s, transform .1s; pointer-events: none; }
+.cursor.in { opacity: 1; }
+.cursor.press { transform: scale(.85); }
+.ghost { position: absolute; z-index: 11; opacity: 0; pointer-events: none; transition: left .8s var(--ease-out), top .8s var(--ease-out), opacity .2s; }
+.ghost.in { opacity: 1; }
+.ghost .mtab { opacity: 1; transform: none; box-shadow: 0 6px 16px rgba(0,0,0,.5); background: rgba(255,255,255,.16); border-radius: 4px; }
+.dropmark { position: absolute; background: rgba(0,163,173,.38); border: 1px solid var(--accent); display: grid; place-items: center; font-size: 9px; color: #fff; font-weight: 600; opacity: 0; transition: opacity .2s; z-index: 3; }
+.dropmark.in { opacity: 1; }
+.mdlg { position: absolute; left: 50%; top: 50%; width: 300px; transform: translate(-50%, -46%); background: #2B2B2B; color: #fff; border: 1px solid rgba(255,255,255,.1); border-radius: 6px; padding: 10px 12px 8px; font-size: 9px; box-shadow: 0 16px 40px rgba(0,0,0,.6); opacity: 0; transition: opacity .25s, transform .25s var(--ease-out); z-index: 6; }
+.mdlg.in { opacity: 1; transform: translate(-50%, -50%); }
+.mdlg h4 { margin: 0 0 6px; font: 600 11px/1.2 var(--body); }
+.mdlg .r { display: grid; grid-template-columns: 10px 1fr auto; gap: 6px; align-items: center; padding: 1.5px 0; }
+.mdlg .r .tile { width: 10px; height: 10px; font-size: 7px; border-radius: 2px; }
+.mdlg .r .st { color: rgba(255,255,255,.55); }
+.mdlg .r.done .st { color: var(--ok); }
+.mdlg .ft { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.08); color: rgba(255,255,255,.6); }
+.mdlg .ft .b { border: 1px solid rgba(255,255,255,.15); border-radius: 3px; padding: 2px 7px; color: #fff; }
+.dark { position: absolute; inset: 0; background: var(--term); opacity: 0; transition: opacity .6s; pointer-events: none; display: grid; place-content: center; justify-items: center; row-gap: 22px; z-index: 7; }
+/* the name block sits above center, clear of the two sentences at the foot; on the screen alone, since .dark also names the caption */
+#dark { padding-bottom: 110px; }
+.dark.in { opacity: 1; }
+/* the name first, as the welcome page has it: the wordmark, the long name on two lines, then the mark draws under them */
+.dark .ttl { display: grid; justify-items: center; opacity: 0; transform: translateY(6px); transition: opacity .4s var(--ease-out), transform .4s var(--ease-out); }
+.dark .ttl.in { opacity: 1; transform: none; }
+.dark .ttl .wordmark { color: var(--film-text); }
+.dark .tag { margin-top: 10px; font-family: var(--wordmark-term); font-weight: 600; font-size: 16px; line-height: 1.35; text-align: center; color: var(--film-text2); opacity: 0; transition: opacity .4s var(--ease-out); }
+.dark .tag.in { opacity: 1; }
+.dark .mk { width: 150px; height: 150px; opacity: 0; transition: opacity .3s; }
+.dark .mk.in { opacity: 1; }
+.dark .mk .loop { stroke-dasharray: 1000; stroke-dashoffset: 1000; }
+.dark .mk.draw .loop { transition: stroke-dashoffset .8s cubic-bezier(.3,.1,.2,1); stroke-dashoffset: 0; }
+.dark .mk .ink { opacity: 0; transition: opacity .3s .35s; }
+.dark .mk.draw .ink { opacity: 1; }
+.tile { display: inline-grid; place-items: center; border-radius: 5px; background: color-mix(in srgb, var(--h) 15%, transparent); color: var(--h); font-weight: 700; font-family: var(--body); line-height: 1; flex: none; }
+.tile[data-a="hermes"] { --h: var(--h-hermes); } .tile[data-a="claude"] { --h: var(--h-claude); } .tile[data-a="codex"] { --h: var(--h-codex); } .tile[data-a="opencode"] { --h: var(--h-opencode); } .tile[data-a="shell"] { --h: #8FB6E8; }
+.wordmark { font-family: Sora, var(--display); font-weight: 800; color: var(--text); display: inline-flex; align-items: baseline; line-height: 1; letter-spacing: -.01em; }
+/* "Term" in Azeret Mono Light, sized so its capitals stand as tall as Sora's (0.73 em against 0.698 em). */
+.wordmark .c { color: var(--accent); font-family: var(--wordmark-term); font-weight: 300; font-size: 1.046em; letter-spacing: 0; }
+
+/* the card the film ends on, over the resumed window */
+.card { position: absolute; left: 50%; top: 50%; width: 600px; max-width: calc(100% - 48px); max-height: calc(100% - 32px); overflow: auto; transform: translate(-50%, -46%); background: var(--panel); border: 1px solid var(--stroke-strong); border-radius: 8px; box-shadow: 0 24px 56px rgba(0,0,0,.5); padding: 22px 24px 18px; opacity: 0; transition: opacity .4s var(--ease-out), transform .4s var(--ease-out); z-index: 20; }
+.card.in { opacity: 1; transform: translate(-50%, -50%); }
+.card .top { display: grid; grid-template-columns: 48px 1fr; gap: 14px; align-items: center; }
+.card .sub { color: var(--text2); font-size: 13px; line-height: 1.45; margin-top: 4px; }
+.card .ctx { margin: 16px 0 14px; border-top: 1px solid var(--stroke); padding-top: 12px; display: grid; gap: 8px; }
+.card .ctx .ey { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text2); }
+.card .ctx .ln { display: grid; grid-template-columns: 24px 1fr; gap: 10px; align-items: start; font-size: 13px; line-height: 1.4; }
+.card .ctx .ln .ico { color: var(--text2); display: grid; place-items: center; height: 20px; }
+.card .ctx .ln .ico svg { width: 16px; height: 16px; }
+.card .ctx .tiles { display: inline-flex; gap: 4px; vertical-align: middle; margin-right: 6px; }
+.card .ctx .tiles .tile { width: 18px; height: 18px; font-size: 11px; }
+.card .ctx b { font-weight: 600; }
+.card .ctx .m { font-family: var(--mono); font-size: 12px; color: var(--text2); }
+.btns { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+.btn { height: 32px; padding: 0 12px; border-radius: 4px; border: 1px solid rgba(255,255,255,.09); border-bottom-color: rgba(255,255,255,.07); background: var(--layer); color: var(--text); font-size: 13px; display: inline-flex; align-items: center; gap: 8px; }
+.btn:hover { background: var(--hover); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn .k { font-size: 11px; opacity: .8; }
+.btns .link { background: none; border: 0; color: var(--text2); font-size: 12px; margin-left: auto; padding: 4px; }
+.btns .link:hover { color: var(--text); text-decoration: underline; }
+.card .foot { font-size: 11.5px; color: var(--text3); margin-top: 10px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadein { from { opacity: 0; } }
+/* scrub mode (welcome.html#scrub in a browser): the toolbar under the film, and the hold on every transition and animation
+   while the film is run forward to a frame */
+.scrub { position: fixed; left: 0; right: 0; bottom: 0; height: 64px; background: #061B29; border-top: 1px solid rgba(136,202,223,.25); display: grid; grid-template-columns: auto auto 1fr auto auto auto auto; grid-template-rows: auto auto; gap: 4px 10px; align-items: center; padding: 6px 12px 4px; z-index: 50; font: 12px var(--body); color: #CFE6EF; user-select: none; }
+.scrub button { background: rgba(255,255,255,.08); border: 0; border-radius: 4px; color: #fff; font: inherit; padding: 2px 8px; cursor: pointer; }
+.scrub button:hover { background: rgba(255,255,255,.16); }
+.scrub #sPlay { width: 34px; height: 24px; font-size: 12px; }
+.scrub .t { font-family: var(--mono); font-variant-numeric: tabular-nums; min-width: 48px; }
+.scrub .range { position: relative; height: 24px; display: flex; align-items: center; min-width: 0; }
+.scrub input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; }
+.scrub .ticks { position: absolute; left: 8px; right: 8px; top: 0; height: 4px; pointer-events: none; }
+.scrub .ticks i { position: absolute; top: 0; width: 1px; height: 4px; background: var(--accent); }
+.scrub select { background: #0B2A3D; color: #fff; border: 1px solid rgba(136,202,223,.3); border-radius: 4px; font: inherit; padding: 1px 4px; }
+.scrub .chime { opacity: 0; transition: opacity .15s; color: var(--warn); font-weight: 600; min-width: 52px; }
+.scrub .chime.on { opacity: 1; }
+.scrub .err { color: var(--danger); font-weight: 600; }
+.scrub .beats { grid-column: 1 / -1; display: flex; gap: 4px; flex-wrap: wrap; }
+.scrub .beats button { font-size: 11px; padding: 1px 7px; }
+.scrub .beats button.cur { background: var(--accent); color: var(--accent-ink); }
+.noanim *, .noanim *::before, .noanim *::after { transition: none !important; animation-duration: 0s !important; animation-delay: 0s !important; }
+@keyframes lineIn { to { opacity: 1; } }
+@keyframes blink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: .3; } }
+@keyframes ghost { 0%, 100% { opacity: .35; } 50% { opacity: .75; } }
+@keyframes ring { 0%, 100% { box-shadow: inset 0 0 0 1.5px var(--accent); } 50% { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 30%, transparent); } }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="film" id="film">
+    <div class="desk" id="desk"><div class="taskbar"><i></i><i></i><div class="tbtn" id="tbtn"></div><i></i><i></i></div></div>
+    <div class="cap" id="cap"></div>
+    <div class="mini closed" id="mini">
+      <div class="mrail" id="mrail"></div>
+      <div class="mpanel" id="mpanel"></div>
+      <div class="mstrip" id="mstrip"></div>
+      <div class="mbody" id="mbody"></div>
+      <div class="mstatus" id="mstatus"></div>
+      <div class="dropmark" id="dropmark"></div>
+      <div class="mnotice" id="mnotice"></div>
+      <div class="mdlg" id="mdlg"></div>
+      <div class="key" id="key">F5</div>
+    </div>
+    <div class="ghost" id="ghost"></div>
+    <div class="cursor" id="cursor"><svg viewBox="0 0 14 20"><path d="M1 1 L1 15.5 L4.6 12 L7.2 18 L9.8 16.9 L7.2 11 L12.2 11 Z" fill="#fff" stroke="#000" stroke-width="1.1" stroke-linejoin="round"/></svg></div>
+    <div class="dark" id="dark"><div class="ttl" id="darkTitle"></div><div class="mk" id="darkMark"></div></div>
+    <div class="led" id="led"></div>
+    <div class="cap dark" id="capDark"></div>
+  </div>
+</div>
+<div class="card" id="card" hidden></div>
+<script>
+(function () {
+  'use strict';
+  const host = window.chrome && window.chrome.webview;
+  // Scrub mode: welcome.html#scrub in a browser (scripts\Show-WelcomeFilm.ps1 opens it) puts a toolbar under the film that
+  // plays, pauses, speeds, scrubs and jumps through it, so a cut is iterated there and not through a publish. The app never
+  // sets the hash. The toolbar's chime cue stands in for the window's chime.
+  const scrub = location.hash === '#scrub';
+  let probing = false, hostTheme = null;
+  const post = message => { if (scrub && message.type === 'chime' && !probing) scrubChime(); if (host) host.postMessage(message); };
+  // ---------- brand drawings: the mark as strokes, letter tiles (SicTerm's own art, never a vendor logo) ----------
+  const LOOP = 'M 239.655 136.787 A 112 112 0 1 0 205.241 209.103 L 240 176 L 240 234.667';
+  const UNDER = 'M 181.333 176 H 256', CHEV = 'M 106.667 85.333 L 149.333 128 L 106.667 170.667';
+  function markSvg(size) {
+    return `<svg viewBox="0 0 256 256" width="${size}" height="${size}" aria-hidden="true"><path class="loop" d="${LOOP}" fill="none" stroke="var(--accent)" stroke-width="32" stroke-linejoin="round"/><g class="ink"><path d="${UNDER}" fill="none" stroke="var(--text)" stroke-width="32"/><path d="${CHEV}" fill="none" stroke="var(--text)" stroke-width="45.255" stroke-linecap="round" stroke-linejoin="round"/></g></svg>`;
+  }
+  const wordmark = size => `<span class="wordmark" style="font-size:${size}px">Sic<span class="c">Term</span></span>`;
+  const LETTER = { hermes: 'H', claude: 'C', codex: 'X', opencode: 'O', shell: '>' };
+  const NAME = { hermes: 'Hermes', claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode', shell: 'PowerShell' };
+  const MODEL = { hermes: 'Opus 4.5', claude: 'Opus 4.5', codex: 'gpt-6.1-sol', opencode: 'Opus 4.5' };
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const tile = a => `<span class="tile" data-a="${esc(a)}">${LETTER[a] || '?'}</span>`;
+  const ICO = {
+    agents: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><rect x="2.75" y="5.25" width="10.5" height="8" rx="2"/><path d="M8 5.25V3"/><circle cx="8" cy="2.4" r=".7"/><path d="M1 8.5v2M15 8.5v2"/><circle cx="6" cy="9.2" r=".85" fill="currentColor" stroke="none"/><circle cx="10" cy="9.2" r=".85" fill="currentColor" stroke="none"/></svg>',
+    list: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M5.5 4h8M5.5 8h8M5.5 12h8"/><circle cx="2.6" cy="4" r=".8" fill="currentColor" stroke="none"/><circle cx="2.6" cy="8" r=".8" fill="currentColor" stroke="none"/><circle cx="2.6" cy="12" r=".8" fill="currentColor" stroke="none"/></svg>',
+    pin: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M10.0589 2.44535C9.34701 1.73087 8.14697 1.90854 7.67261 2.79864L5.6526 6.58902L2.8419 7.52592C2.6775 7.58072 2.5532 7.71673 2.51339 7.88539C2.47357 8.05404 2.52392 8.23128 2.64646 8.35382L4.79287 10.5002L2.14637 13.1467L2 14.0003L2.85348 13.8538L5.49998 11.2073L7.64646 13.3538C7.76899 13.4764 7.94623 13.5267 8.11489 13.4869C8.28354 13.4471 8.41955 13.3228 8.47435 13.1584L9.41143 10.3472L13.1897 8.32448C14.0759 7.85006 14.2538 6.65535 13.5443 5.9433L10.0589 2.44535Z"/></svg>',
+    speaker: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round"><path d="M2.5 6.1h2.4L8.4 3v10l-3.5-3.1H2.5z"/><path d="M10.9 5.6a3.4 3.4 0 0 1 0 4.8M12.7 3.9a5.8 5.8 0 0 1 0 8.2"/></svg>',
+    emoji: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><circle cx="8" cy="8" r="6.25"/><path d="M5.4 9.6a3.1 3.1 0 0 0 5.2 0"/><circle cx="5.9" cy="6.4" r=".7" fill="currentColor" stroke="none"/><circle cx="10.1" cy="6.4" r=".7" fill="currentColor" stroke="none"/></svg>',
+    find: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2L13.5 13.5"/></svg>',
+  };
+  // The miniature's rail buttons, in the real rail's order. Resume all is the app's own glyph (the mark in one colour, as
+  // Controls/ResumeAllMark draws it at menu size); the others stand in for the Segoe glyphs the real buttons use: Agent Workspaces a robot
+  // (E99A) and Sessions a magnifier (E721) since November 9, 2026, drawn as the card's agents line and the Sessions search box draw them.
+  const RAIL = {
+    folders: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M2 4h4l1.5 1.5H14v7.5H2z"/></svg>',
+    agents: ICO.agents,
+    sessions: ICO.find,
+    new: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>',
+    resume: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M6.667 4.583 C6.859 4.583 7.051 4.657 7.197 4.803 L9.864 7.47 C10.157 7.763 10.157 8.237 9.864 8.53 L7.197 11.197 C6.904 11.49 6.429 11.49 6.136 11.197 5.843 10.904 5.843 10.429 6.136 10.136 L8.273 8 6.136 5.864 C5.843 5.571 5.843 5.096 6.136 4.803 6.283 4.657 6.475 4.583 6.667 4.583 ZM7.998 0.682 L8.645 0.711 9.295 0.799 9.943 0.946 10.575 1.151 11.178 1.409 11.749 1.716 12.285 2.068 12.785 2.464 13.246 2.899 13.667 3.371 14.044 3.877 14.377 4.413 14.663 4.977 14.9 5.565 15.086 6.175 15.219 6.803 15.296 7.446 15.316 8.101 15.277 8.765 13.984 8.629 14.016 8.082 14 7.544 13.936 7.015 13.827 6.499 13.675 5.998 13.48 5.514 13.244 5.051 12.97 4.609 12.66 4.193 12.314 3.805 11.934 3.447 11.524 3.122 11.083 2.832 10.614 2.58 10.119 2.368 9.598 2.199 9.064 2.078 8.53 2.006 7.998 1.982 7.471 2.006 6.952 2.075 6.443 2.188 5.947 2.344 5.467 2.543 5.006 2.781 4.566 3.059 4.151 3.375 3.763 3.727 3.405 4.114 3.08 4.536 2.79 4.99 2.538 5.476 2.331 5.983 2.173 6.498 2.063 7.019 2 7.542 1.983 8.066 2.012 8.587 2.085 9.102 2.202 9.608 2.362 10.102 2.565 10.581 2.808 11.042 3.092 11.482 3.416 11.899 3.779 12.288 4.179 12.648 4.618 12.976 5.084 13.263 5.567 13.503 6.062 13.697 6.569 13.845 7.082 13.947 7.601 14.004 8.121 14.016 8.639 13.983 9.153 13.905 9.658 13.784 10.153 13.619 10.634 13.411 11.097 13.159 11.541 12.865 11.962 12.528 12.357 12.149 13.15 11.317 10.333 11.317 10.333 10.017 15.317 10.017 15.317 10.667 15.317 11.317 15.317 13.667 14.017 13.667 14.017 12.292 13.298 13.046 12.819 13.506 12.307 13.916 11.767 14.274 11.202 14.58 10.618 14.833 10.016 15.034 9.401 15.181 8.777 15.275 8.147 15.315 7.515 15.301 6.885 15.232 6.26 15.108 5.643 14.928 5.04 14.692 4.453 14.4 3.887 14.051 3.355 13.653 2.867 13.215 2.426 12.741 2.032 12.234 1.686 11.699 1.39 11.138 1.144 10.555 0.949 9.955 0.807 9.34 0.718 8.714 0.683 8.081 0.704 7.444 0.78 6.807 0.914 6.173 1.107 5.546 1.358 4.931 1.664 4.341 2.016 3.788 2.412 3.275 2.848 2.804 3.32 2.375 3.825 1.991 4.359 1.653 4.92 1.363 5.503 1.123 6.106 0.932 6.725 0.795 7.357 0.711 7.998 0.682 Z"/></svg>',
+    settings: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M12.4 3.6L11 5M5 11l-1.4 1.4"/></svg>',
+  };
+
+  // ---------- what the film shows: the script's ten tabs, with the PC's own folders and agents laid over it when the host sends them ----------
+  // Nine tabs the day opens with, in example folders a developer, a knowledge worker and a business person would each
+  // recognize (the film's own, never the PC's: a personal folder name had shown up here). Tabs 0, 6 and 8 work in one
+  // folder, so F6 has something to gather; 4 is the tab the drag takes; 3 is the workspace the Workspaces beat dresses. A tenth, FOUND,
+  // is the conversation the Sessions search finds and resumes, in the one folder the tabs do not hold, so nothing else
+  // shares a folder once F6 has run. The agents are the PC's own: a tab's agent is replaced when it is not detected.
+  const SCRIPT = [
+    { a: 'claude', e: '🚀', n: 'Repos' }, { a: 'codex', n: 'Issues' },
+    { a: 'claude', e: '📘', n: 'Obsidian' }, { a: 'hermes', n: 'Projects' },
+    { a: 'claude', n: 'Knowledge' }, { a: 'opencode', e: '📣', n: 'Marketing' },
+    { a: 'codex', e: '🚀', n: 'Repos · tests', f: 'Repos' }, { a: 'claude', n: 'Business' },
+    { a: 'hermes', e: '🚀', n: 'Repos · release', f: 'Repos' },
+  ];
+  const FOUND = { a: 'claude', n: 'SicTerm privacy questions', f: 'Scripts' };
+  const ALL_AGENTS = ['claude', 'codex', 'hermes', 'opencode'];
+  // The host's facts, in their first form before detection and the history refresh have answered.
+  let C = { agents: [], conversations: 0, folders: 0, pinned: 0, latest: null, ready: false };
+  let filmTabs = [], found = null;
+  function haveAgents() { const have = C.agents.map(a => a.id).filter(id => LETTER[id]); return have.length ? have : ALL_AGENTS; }
+  const agentFor = (a, i) => { const have = haveAgents(); return have.includes(a) ? a : have[i % have.length]; };
+  function foundTab() { return { a: agentFor(FOUND.a, 0), e: '', n: FOUND.n, f: FOUND.f }; }
+  function buildTabs() { return SCRIPT.map((t, i) => ({ a: agentFor(t.a, i), e: t.e || '', n: t.n, f: t.f || t.n })); }
+
+  // ---------- the window at rest ----------
+  const $ = id => document.getElementById(id);
+  $('tbtn').innerHTML = markSvg(20);
+  const railButton = id => `<span class="rb" id="rb-${id}">${RAIL[id]}</span>`;
+  $('mrail').innerHTML = `<i class="rmark"></i>${['agents', 'folders', 'sessions'].map(railButton).join('')}<span class="grow"></span>${['new', 'resume', 'settings'].map(railButton).join('')}`;
+  const rbSessions = $('rb-sessions'), rbFolders = $('rb-folders'), rbAgents = $('rb-agents'), rbResume = $('rb-resume'), rbSettings = $('rb-settings');
+  let scale = 1;
+  function fit() {
+    const w = innerWidth, h = innerHeight - (scrub ? 64 : 0); scale = Math.min(w / 812, h / 662, 1.25);
+    $('stage').style.transform = `translate(-50%, -50%) scale(${scale})`;
+    if (scrub) $('stage').style.top = 'calc(50% - 32px)';
+  }
+  addEventListener('resize', fit);
+
+  // ---------- the film: one timeline, one miniature, a day and the next launch ----------
+  // at(ms, fn) runs fn after ms, counted from the moment at() is called, so a beat's own at() calls nest under it. In the app
+  // the browser's timers do it; in scrub mode a clock of the film's own does, which the toolbar pauses, speeds and seeks.
+  let timers = [], looping = false, strp = [];
+  const clock = { now: 0, playing: true, speed: 1 };
+  let queue = [], seq = 0, lastFired = 0, scrubErrors = 0;
+  const beats = [];
+  const at = (ms, fn) => { if (scrub) queue.push({ t: clock.now + ms, fn, seq: seq++ }); else timers.push(setTimeout(fn, ms)); };
+  const clear = () => { timers.forEach(clearTimeout); timers = []; queue = []; clock.now = 0; lastFired = 0; beats.length = 0; };
+  // A named moment of the film, for the toolbar's ticks and buttons; nothing in the app
+  const beat = (name, ms) => { if (scrub) beats.push({ name, t: clock.now + ms }); };
+  // Runs every timer due by `target`, in time order, each seeing the clock at its own moment, so what it schedules nests right
+  function run(target) {
+    for (;;) {
+      let i = -1;
+      for (let k = 0; k < queue.length; k++) if (queue[k].t <= target && (i < 0 || queue[k].t < queue[i].t || (queue[k].t === queue[i].t && queue[k].seq < queue[i].seq))) i = k;
+      if (i < 0) break;
+      const timer = queue.splice(i, 1)[0];
+      clock.now = lastFired = timer.t;
+      // a timer that throws stops only itself, as a browser timer would; the toolbar counts it and the console has it
+      try { timer.fn(); } catch (e) { scrubErrors++; console.error(e); }
+    }
+    if (target !== Infinity) clock.now = Math.max(clock.now, target);
+  }
+  const film = $('film'), desk = $('desk'), tbtn = $('tbtn'), led = $('led'), mini = $('mini'), rail = $('mrail'), panel = $('mpanel'), strip = $('mstrip'), body = $('mbody'), status = $('mstatus');
+  const cap = $('cap'), capDark = $('capDark'), dark = $('dark'), darkMark = $('darkMark'), darkTitle = $('darkTitle'), cursor = $('cursor'), ghost = $('ghost'), dropmark = $('dropmark'), dlg = $('mdlg'), key = $('key'), notice = $('mnotice');
+  function caption(text, where) {
+    const el = where === 'dark' ? capDark : cap;
+    el.classList.remove('in');
+    if (text === '') return;
+    // a long caption steps down a size, so it keeps to two lines above the window
+    at(160, () => { el.innerHTML = `<div class="l in">${esc(text)}</div>`; el.style.fontSize = where !== 'dark' && text.length > 56 ? '23px' : ''; el.classList.add('in'); });
+  }
+  // A second sentence under the caption showing; the first stays, so the two are read together.
+  function captionMore(text, where) {
+    const line = document.createElement('div'); line.className = 'l'; line.textContent = text;
+    (where === 'dark' ? capDark : cap).appendChild(line);
+    requestAnimationFrame(() => requestAnimationFrame(() => line.classList.add('in')));
+  }
+  function rel(el) { const f = film.getBoundingClientRect(), r = el.getBoundingClientRect(); return { x: (r.left - f.left) / scale, y: (r.top - f.top) / scale, w: r.width / scale, h: r.height / scale }; }
+  // The pointer glides to a point, or jumps there unseen (jump) to glide from it next.
+  function cursorTo(x, y, jump) {
+    if (jump) cursor.style.transition = 'none';
+    cursor.style.left = x + 'px'; cursor.style.top = y + 'px'; ghost.style.left = (x + 8) + 'px'; ghost.style.top = (y + 10) + 'px';
+    if (jump) { void cursor.offsetWidth; cursor.style.transition = ''; }
+  }
+  function tabEl(t) {
+    const d = document.createElement('div');
+    d.className = 'mtab'; d.dataset.a = t.a;
+    d.innerHTML = `${tile(t.a)}<span class="n">${esc(t.n)}</span><span class="d"></span>`;
+    return d;
+  }
+  // What a running session shows: a short transcript of the film's own, by folder (u: the user's ask, a: the agent, t: a tool
+  // step, w: the step under way when the pane is working, c: the prompt with its caret when it is idle). Each is a question a
+  // viewer may have about SicTerm, answered from the repository's own decisions and README: an aside for whoever reads it, in
+  // Chris's set of October 18, 2026, even in the tabs the film never opens.
+  const CHAT = {
+    'Repos': [['u', 'How does SicTerm resume a session after a restart?'], ['a', 'Looking at how a placeholder starts its agent.'], ['t', 'Read MainWindow.ResumeAll.cs'], ['w', 'Reading the resume path'], ['a', 'Each pane restarts its own agent with that agent\'s resume command for the saved conversation, in the same folder, and the layout comes back from the saved state.'], ['c']],
+    'Repos · tests': [['u', 'Does SicTerm need admin rights or an API key?'], ['a', 'No. Setup installs for your account only, without admin rights, and SicTerm has no keys of its own: each agent runs as your own install, already signed in.'], ['c']],
+    'Repos · release': [['u', 'How do updates arrive?'], ['a', 'From the repository\'s GitHub releases. An update downloads in the background and is applied when SicTerm quits, after the agents have exited cleanly.'], ['c']],
+    'Issues': [['u', 'What happens to running sessions when I quit?'], ['a', 'Each agent is asked to exit cleanly first, and the layout is saved. Next launch every tab comes back as a placeholder, and F5 resumes them all.'], ['c']],
+    'Obsidian': [['u', 'Can I search what was said, not just titles?'], ['a', 'Yes. Sessions searches titles, folders and the transcripts themselves, read from the agents\' own history files on this PC.'], ['c']],
+    'Projects': [['u', 'Can two agents work in the same folder?'], ['a', 'Yes. Open each in its own tab or pane; F6 gathers the tabs that share a folder into one, and a tab holds up to 16 panes.'], ['c']],
+    'Knowledge': [['u', 'Which agents does SicTerm run?'], ['a', 'Claude Code, Codex, Hermes and OpenCode, side by side, plus a PowerShell pane. An agent is found as soon as it is installed.'], ['c']],
+    'Marketing': [['u', 'Where do the gauges get their numbers?'], ['a', 'From what the agents report: Claude Code\'s status line gives its context window and rate limits, and the others are read from what they write. No account is queried.'], ['c']],
+    'Business': [['u', 'Does SicTerm change my agents\' settings or files?'], ['a', 'No. It launches each agent as installed, in your folder, with your own configuration, and writes only its own settings and catalog under %LOCALAPPDATA%.'], ['c']],
+    // The conversation the Sessions search finds: the questions a viewer may have that the captions do not answer, with the
+    // answers the repository's own decisions and README give (docs/decisions/usage-limits.md, installer.md). For whoever reads it.
+    'SicTerm privacy questions': [['u', 'Does SicTerm read my credentials or my data, and does it send anything anywhere?'], ['a', 'No. SicTerm launches your own agent installs, unmodified, and never touches their credentials.'], ['a', 'It reads the conversation histories the agents already save on this PC, and keeps its own settings, layout and catalog in a folder under %LOCALAPPDATA%.'], ['a', 'Nothing is sent to SicTerm. Its only network use is the update check against its GitHub releases.'], ['c']],
+    default: [['u', 'Pick up where we left off'], ['a', 'Reading the last step.'], ['c']],
+  };
+  // Working, the transcript stops at the step under way; idle, the step is over and what came after it shows, down to the prompt
+  function chatHtml(t, working) {
+    const all = CHAT[t.n] || CHAT[t.f] || CHAT.default, step = all.findIndex(l => l[0] === 'w');
+    const lines = working ? (step >= 0 ? all.slice(0, step + 1) : all.filter(l => l[0] !== 'c').concat([['w', 'Working']])) : all.filter(l => l[0] !== 'w');
+    return lines.map((l, i) => {
+      const d = `style="animation-delay:${i * 90}ms"`;
+      return l[0] === 'c' ? `<div class="ln c" ${d}><i></i></div>` : l[0] === 'w' ? `<div class="ln w" ${d}><i></i>${esc(l[1])}…</div>` : `<div class="ln ${l[0]}" ${d}>${esc(l[1])}</div>`;
+    }).join('');
+  }
+  // A pane: its header carries the tile, the folder's emoji, the name, the folder, and the model with its context meter; its
+  // body is the skeleton while the session loads (state 'loading', then settle), or the session's transcript (live, or
+  // working when the agent is on a step). A pane is shown with 'in'.
+  function paneEl(t, ctx, state = 'live') {
+    const p = document.createElement('div'); p.className = 'mpane ' + (state === 'working' ? 'live working' : state);
+    p.style.setProperty('--h', `var(--h-${t.a})`);
+    let g = '';
+    for (let i = 0; i < 6; i++) { const w = 30 + ((i * 37) % 55); g += `<i class="${i % 4 === 1 ? 'k' : ''}" style="width:${w}%"></i>`; }
+    const c = ctx ? `<span class="ctx on"><span>${esc(ctx.model)}</span><span class="track" style="width:26px"><span class="fill" style="width:${ctx.pct}%;background:var(--${ctx.cls})"></span></span><span class="pct">${ctx.pct}%</span></span>` : '';
+    p.innerHTML = `<div class="mph">${tile(t.a)}${t.e ? `<span class="e">${esc(t.e)}</span>` : ''}<span>${esc(t.n)}</span><span class="f">…\\${esc(t.f)}</span><span class="grow"></span>${c}<span class="d"></span></div><div class="gl">${g}</div><div class="tx">${chatHtml(t, state === 'working')}</div>`;
+    if (t.tc) p.querySelector('.mph').style.background = `color-mix(in srgb, ${t.tc} 30%, rgba(255,255,255,.11))`;
+    return p;
+  }
+  // A label on a part of the window with a line to it, placed from where the part is now; returns what takes it away
+  function callout(target, text, side) {
+    const t = rel(target), m = rel(mini);
+    const c = document.createElement('div'); c.className = 'callout ' + side; c.textContent = text;
+    mini.appendChild(c);
+    const w = c.offsetWidth, h = c.offsetHeight, cx = t.x - m.x + t.w / 2;
+    const left = Math.max(4, Math.min(m.w - w - 4, cx - w / 2));
+    c.style.left = left + 'px'; c.style.top = (side === 'up' ? t.y - m.y + t.h + 14 : t.y - m.y - 14 - h) + 'px';
+    c.style.setProperty('--lx', (cx - left) + 'px');
+    target.classList.add('hl');
+    requestAnimationFrame(() => requestAnimationFrame(() => c.classList.add('in')));
+    return () => { c.classList.remove('in'); target.classList.remove('hl'); at(300, () => c.remove()); };
+  }
+  // A loading pane's session arrives: the skeleton gives way to the transcript
+  const settle = (p, ms) => at(ms, () => p.classList.replace('loading', 'live'));
+  function placeholderEl(t) {
+    const p = document.createElement('div'); p.className = 'mpane';
+    p.innerHTML = `<div class="mph">${tile(t.a)}${t.e ? `<span class="e">${esc(t.e)}</span>` : ''}<span>${esc(t.n)}</span><span class="f">…\\${esc(t.f)}</span><span class="grow"></span></div><div class="gl" style="align-items:flex-start;gap:7px;padding:16px 18px"><span style="font-size:10px;font-weight:600;color:#fff">${esc(t.n)}</span><span style="font-size:8px;color:rgba(255,255,255,.65)">Saved conversation · ${NAME[t.a] || t.a} · nothing runs until asked</span><span style="display:inline-block;margin-top:4px;height:16px;padding:0 8px;border-radius:3px;background:var(--accent);color:var(--accent-ink);font-size:8px;font-weight:600;line-height:16px" class="rbtn">Resume conversation</span></div>`;
+    if (t.tc) p.querySelector('.mph').style.background = `color-mix(in srgb, ${t.tc} 30%, rgba(255,255,255,.11))`;
+    return p;
+  }
+  function setLayout(panes, kind) {
+    body.innerHTML = '';
+    body.style.gridTemplateColumns = kind === 'one' ? '1fr' : '1fr 1fr';
+    body.style.gridTemplateRows = kind === 'one' ? '1fr' : '1fr 1fr';
+    body.style.gridTemplateAreas = kind === 'one' ? '"a"' : kind === 'three' ? '"a b" "a c"' : '"a b" "c d"';
+    panes.forEach((p, i) => { p.style.gridArea = 'abcd'[i]; body.appendChild(p); });
+    return panes;
+  }
+  const meterHtml = (id, label, tick) => `<span class="meter" id="${id}"><span class="lab">${label}</span><span class="track"><span class="fill"></span><span class="tick" style="left:${tick}%"></span></span><span class="pct">0%</span></span>`;
+  function meter(id, pct, cls) { const m = $(id); m.classList.add('on'); at(60, () => { const f = m.querySelector('.fill'); f.style.width = pct + '%'; f.style.background = `var(--${cls})`; m.querySelector('.pct').textContent = pct + '%'; }); }
+  // The plan limits in the status bar and the model and context meter in each pane header are in view from the first resume on, without a word
+  function showMeters() { meter('mc5', 58, 'ok'); meter('mc7', 84, 'warn'); at(300, () => { meter('mg5', 23, 'ok'); meter('mg7', 40, 'ok'); }); }
+  const CTX = [{ pct: 72, cls: 'warn' }, { pct: 31, cls: 'ok' }, { pct: 48, cls: 'ok' }, { pct: 91, cls: 'danger' }];
+  const ctxOf = (t, j) => ({ model: MODEL[t.a] || 'Opus 4.5', ...CTX[j % 4] });
+  function setCount(running, working, tabs) { $('mcount').textContent = `${running} running${working ? ` · ${working} working` : ''} · ${tabs} tabs`; }
+  function showNotice(text, hold) { notice.innerHTML = `<i>✓</i><b>${text}</b><span class="x">✕</span>`; notice.classList.add('in'); at(hold, () => notice.classList.remove('in')); }
+  // The pointer glides to an element (or to what a function finds when the time comes) and clicks it: hover on arrival, press,
+  // release; a double-click when asked. For a rail button with a key, the key cap appears beside it on arrival and goes down
+  // with the click: one action, shown both ways. A hidden pointer first jumps unseen to the window's middle (or `from`) and comes
+  // in from there; `leave` hides it that long after the click. Returns the moment the click lands, for the beat it starts.
+  function click(target, t, o = {}) {
+    let el;
+    const settle = o.key ? 1700 : o.quick ? 450 : 1150;
+    at(t, () => {
+      el = typeof target === 'function' ? target() : target;
+      if (!cursor.classList.contains('in')) { cursorTo(o.from ? o.from.x : 420, o.from ? o.from.y : 340, true); cursor.classList.add('in'); }
+      at(60, () => { const b = rel(el); cursorTo(b.x + b.w * (o.ax ?? .5) - 2, b.y + b.h * (o.ay ?? .5) - 2); });
+    });
+    at(t + 900, () => {
+      el.classList.add('hover');
+      if (o.key) {
+        const b = rel(el), m = rel(mini);
+        // beside the rail, on the window's side of it: to the right of a rail on the left, to the left of one on the right
+        key.textContent = o.key; key.style.left = (mini.classList.contains('right') ? b.x - m.x - 14 - 56 : b.x - m.x + b.w + 14) + 'px'; key.style.top = Math.min(b.y - m.y + b.h / 2 - 28, m.h - 16 - 58) + 'px'; key.className = 'key in';
+      }
+    });
+    const press = (d, down) => at(t + d, () => { cursor.classList.toggle('press', down); el.classList.toggle('press', down); if (o.key) key.classList.toggle('down', down); if (!down) el.classList.remove('hover'); });
+    press(settle, true); press(settle + 200, false);
+    if (o.dbl) { press(settle + 320, true); press(settle + 480, false); }
+    if (o.key) at(t + settle + 800, () => key.classList.add('out'));
+    const lands = t + settle + (o.dbl ? 480 : 200);
+    if (o.leave) at(lands + o.leave, () => cursor.classList.remove('in'));
+    return lands;
+  }
+  // Letters into the panel's search box, one by one; `each` sees the text so far
+  function type(box, text, t, step, each) {
+    for (let i = 1; i <= text.length; i++) at(t + i * step, () => { const b = box(); b.querySelector('.q').textContent = text.slice(0, i); b.classList.add('typed'); if (each) each(text.slice(0, i)); });
+  }
+
+  // ---------- the side panel beside the rail: Sessions, Folders, Agent Workspaces or Settings ----------
+  // The conversations Sessions lists: the film's own, in the PC's folders; the fourth is the one the search finds and the day resumes
+  const SESSIONS = [
+    { n: 'Q3 budget summary', tab: 7, w: '2 hours ago' }, { n: 'Flaky test on CI', tab: 6, w: 'yesterday' },
+    { n: 'Timeline for the launch', tab: 3, w: 'yesterday' }, { n: 'SicTerm privacy questions', tab: null, w: '3 days ago' },
+    { n: 'Hero copy for the landing page', tab: 5, w: '4 days ago' }, { n: 'Notes on vector search', tab: 4, w: '6 days ago' },
+    { n: 'Triage the login bug', tab: 1, w: 'on October 2' },
+  ];
+  const FOUND_ROW = 3;
+  function sessionsHtml() {
+    const src = s => s.tab === null ? found : filmTabs[s.tab];
+    return `<div class="inner"><div class="hd">Sessions<span class="x">✕</span></div>
+      <div class="srch" id="srch"><span class="q"></span><span class="caret"></span><span class="hint">Search conversations</span><span class="ico">${ICO.find}</span></div>
+      <div class="cnt" id="scnt">${SESSIONS.length} conversations · newest first</div>
+      <div class="rows" id="srows">${SESSIONS.map(s => `<div class="row">${tile(src(s).a)}<div class="t"><div class="n">${esc(s.n)}</div><div class="s">${esc(src(s).f)} · ${esc(s.w)}</div></div><span class="pin">${ICO.pin}</span></div>`).join('')}</div></div>`;
+  }
+  // Folders and Agent Workspaces: a row per listed folder, with the folder's emoji where it has one; Agent Workspaces lists each folder's workspace, so the rows read the same
+  const folderRow = t => `<div class="row f">${t.e ? `<span class="e">${esc(t.e)}</span>` : `<span class="fi">${RAIL.folders}</span>`}<div class="t"><div class="n">${esc(t.f)}</div></div></div>`;
+  function foldersHtml() {
+    return `<div class="inner"><div class="hd">Folders<span class="x">✕</span></div>
+      ${[0, 2, 3, 5, 7].map(i => folderRow(filmTabs[i])).join('')}
+      <div class="mcard" id="mcard"></div></div>`;
+  }
+  function agentsHtml() {
+    return `<div class="inner"><div class="hd">Agent Workspaces<span class="x">✕</span></div>
+      ${[0, 2, 3, 5, 7].map(i => folderRow(filmTabs[i])).join('')}</div>`;
+  }
+  // Settings, as far as the film goes: the Theme choice with its folder, Reload and Copy buttons, the Side Panel and Tabs
+  // choices, and the Ready chime with its folder and Reload, named as the real panel names them
+  function settingsHtml() {
+    const row = (id, label, value) => `<div class="row set" id="${id}"><div class="t"><div class="s">${label}</div><div class="n">${esc(value)}</div></div><span class="chev">▾</span></div>`;
+    const tools = names => `<div class="tools">${names.map(n => `<span>${n}</span>`).join('')}</div>`;
+    return `<div class="inner"><div class="hd">Settings<span class="x">✕</span></div>
+      <div class="lbl">Appearance</div>${row('stTheme', 'Theme', hostTheme ? hostTheme.name || 'Your theme' : 'SicTerm Dark')}${tools(['Themes folder', 'Reload', 'Copy to a file'])}${row('stSide', 'Side Panel', 'Left')}${row('stTabs', 'Tabs', 'Top')}
+      <div class="lbl">Alerts</div>${row('stSound', 'Ready chime', 'Chime')}${tools(['Sounds folder', 'Reload'])}</div>`;
+  }
+  const PANELS = { sessions: [sessionsHtml, () => rbSessions], folders: [foldersHtml, () => rbFolders], agents: [agentsHtml, () => rbAgents], settings: [settingsHtml, () => rbSettings] };
+  function openPanel(kind) {
+    panel.innerHTML = PANELS[kind][0]();
+    mini.classList.add('panel');
+    Object.keys(PANELS).forEach(k => PANELS[k][1]().classList.toggle('on', k === kind));
+  }
+  function closePanel() { mini.classList.remove('panel'); Object.keys(PANELS).forEach(k => PANELS[k][1]().classList.remove('on')); at(650, () => { panel.innerHTML = ''; }); }
+  // What the day leaves saved, for the next launch and the resting frame: the home tab holding four panes, the rest one each
+  const closedTabs = () => [{ t: filmTabs[0], panes: [filmTabs[0], filmTabs[6], filmTabs[8], filmTabs[4]] }, { t: filmTabs[1] }, { t: filmTabs[2] }, { t: filmTabs[3] }, { t: filmTabs[5] }, { t: filmTabs[7] }, { t: found }];
+  const panesOf = s => s.panes || [s.t];
+
+  function resetFilm() {
+    clear(); looping = false; strp = [];
+    film.classList.remove('ambient');
+    $('card').hidden = true; $('card').classList.remove('in'); $('card').innerHTML = '';
+    desk.className = 'desk'; tbtn.className = 'tbtn'; led.classList.remove('on');
+    mini.className = 'mini closed'; strip.innerHTML = ''; body.innerHTML = ''; panel.innerHTML = '';
+    status.innerHTML = '<span id="mcount">0 running · 0 tabs</span><span class="grow"></span>' + meterHtml('mc5', 'Claude 5h', 60) + meterHtml('mc7', '7d', 40) + meterHtml('mg5', 'ChatGPT 5h', 60) + meterHtml('mg7', '7d', 40);
+    cap.className = 'cap'; cap.textContent = ''; capDark.className = 'cap dark'; capDark.textContent = '';
+    dark.classList.remove('in'); darkMark.className = 'mk'; darkMark.innerHTML = ''; darkTitle.className = 'ttl'; darkTitle.innerHTML = '';
+    cursor.className = 'cursor'; ghost.className = 'ghost'; ghost.innerHTML = ''; dropmark.className = 'dropmark';
+    dlg.className = 'mdlg'; dlg.innerHTML = ''; key.className = 'key'; notice.classList.remove('in');
+    rail.querySelectorAll('.rb').forEach(b => b.className = 'rb'); mini.querySelectorAll('.callout').forEach(c => c.remove());
+    restoreTheme();
+  }
+  function play() {
+    resetFilm();
+    filmTabs = buildTabs(); found = foundTab();
+    looping = true;
+    at(50, () => cycle(true));
+  }
+  // The day (full), or the next launch: the dark, the window and F5, then the film rests and the card rises. Every caption
+  // comes first and has its reading time before the beat it names plays, and the beat stays in view before the next caption.
+  function cycle(full) {
+    strp = []; beat(full ? 'Start' : 'Reopen', 0);
+    let opened;
+    if (full) {
+      // 1. dark, five and a half seconds in all: the name as the welcome page has it, the wordmark, then Super-Intelligent-Chat
+      // Terminal on two lines, then the loop draws itself under them, all under the two sentences that say what SicTerm is for
+      at(0, () => {
+        dark.classList.add('in'); mini.classList.replace('closed', 'unseen');
+        darkTitle.className = 'ttl'; darkTitle.innerHTML = wordmark(44) + '<div class="tag" id="darkTag">Super-Intelligent-Chat<br>Terminal</div>';
+        darkMark.className = 'mk'; darkMark.innerHTML = markSvg(150);
+        requestAnimationFrame(() => requestAnimationFrame(() => darkTitle.classList.add('in')));
+      });
+      at(350, () => $('darkTag').classList.add('in'));
+      at(700, () => { darkMark.classList.add('in'); requestAnimationFrame(() => requestAnimationFrame(() => darkMark.classList.add('draw'))); });
+      at(500, () => caption('AI agents save your conversations.', 'dark'));
+      at(2300, () => captionMore('SicTerm resumes, organizes and searches them.', 'dark'));
+      // 2. the lights come on: the desktop, with SicTerm already open and running, nine sessions in their folders. The resume
+      // is kept for the end, where the viewer has seen what a session is
+      const open = 5500; beat('Open', open);
+      at(open - 600, () => { caption('', 'dark'); led.classList.add('on'); });
+      at(open, () => { dark.classList.remove('in'); darkMark.classList.remove('in'); desk.classList.remove('off'); desk.classList.add('on'); });
+      opened = open + 300;
+      at(opened, () => {
+        tbtn.classList.add('run');
+        filmTabs = buildTabs(); found = foundTab();
+        strip.innerHTML = ''; strp = filmTabs.map(t => { const el = tabEl(t); el.classList.add('in', 'rest'); strip.appendChild(el); return el; });
+        // the first tab's agent is on a step, so one pane is seen working and the others at their prompts
+        strp[0].classList.add('sel'); strp[0].classList.replace('rest', 'working');
+        const pane = paneEl(filmTabs[0], ctxOf(filmTabs[0], 0), 'working'); pane.classList.add('in'); setLayout([pane], 'one');
+        setCount(9, 1, 9); showMeters();
+        // the rail: nothing waits for Resume all
+        mini.classList.remove('unseen');
+      });
+      at(opened + 900, () => caption('Manage all agent sessions in one place'));
+      // the gauges, named at the first look while the caption holds: the pane header's context meter and the status bar's plan meters
+      at(opened + 1500, () => {
+        const off = [callout(body.querySelector('.mph .ctx'), 'Context window used', 'up'), callout($('mc5'), 'Plan usage · 5-hour and 7-day limits', 'down')];
+        at(3500, () => off.forEach(f => f()));
+      });
+    } else {
+      // the desktop is still up after Quit: the pointer opens SicTerm again from the taskbar, and the window grows out of it the
+      // way it closed, seven tabs, the first holding four panes, every one a placeholder
+      opened = click(tbtn, 700, { from: { x: 430, y: 330 }, leave: 1700 });
+      at(opened, () => {
+        tbtn.classList.add('run');
+        const tabs = closedTabs();
+        strip.innerHTML = ''; strp = tabs.map(s => { const el = tabEl(s.t); el.classList.add('ph'); strip.appendChild(el); return el; });
+        strp[0].classList.add('sel');
+        const panes = tabs[0].panes.map(placeholderEl); setLayout(panes, 'four');
+        mini.classList.remove('closed');
+        panes.forEach((p, i) => at(500 + i * 120, () => p.classList.add('in')));
+        strp.forEach((el, i) => at(450 + i * 100, () => el.classList.add('in')));
+        setCount(0, 0, strp.length);
+        // the rail lights Resume all while sessions wait, as the real one does; nothing shares a folder any more
+        rbResume.className = 'rb lit';
+      });
+      at(opened + 600, () => caption('SicTerm opens the way it closed.'));
+      // 3. the resume, named first: the pointer resumes one session from its placeholder's button, which loads and prints its
+      // transcript; then it clicks the rail's lit Resume all button as F5 goes down beside it, and the rest come back in turn
+      const f5 = opened + 3600; beat('Resume', f5);
+      at(f5, () => caption('Selectively resume sessions or F5 to resume all'));
+      const one = click(() => body.children[0].querySelector('.rbtn'), f5 + 900);
+      at(one, () => {
+        const t = closedTabs()[0].panes[0];
+        const p = paneEl(t, ctxOf(t, 0), 'loading'); p.classList.add('in'); p.style.gridArea = 'a'; body.replaceChild(p, body.children[0]); settle(p, 1000);
+        strp[0].classList.remove('ph'); strp[0].classList.add('working'); setCount(1, 1, strp.length);
+        at(1000, () => { strp[0].classList.remove('working'); strp[0].classList.add('rest'); setCount(1, 0, strp.length); });
+      });
+      at(one + 1700, () => rbResume.classList.add('mark'));
+      const resume = click(rbResume, one + 2300, { key: 'F5', leave: 1000 });
+      at(resume, () => {
+        rbResume.classList.remove('mark', 'lit');
+        const tabs = closedTabs();
+        // the three panes still waiting in the first tab load in turn, then every other tab
+        [...body.children].slice(1).forEach((old, j) => { const t = tabs[0].panes[j + 1]; const p = paneEl(t, ctxOf(t, j + 1), 'loading'); p.classList.add('in'); p.style.gridArea = old.style.gridArea; body.replaceChild(p, old); settle(p, 900 + j * 220); });
+        let running = 1;
+        strp.forEach((el, i) => {
+          at(i * 170, () => { el.classList.remove('ph'); el.classList.add('working'); running += i === 0 ? 3 : 1; setCount(running, running - 1, strp.length); });
+          at(i * 170 + 900, () => { el.classList.remove('working'); el.classList.add('rest'); });
+        });
+        at(strp.length * 170 + 950, () => { setCount(10, 0, strp.length); showNotice('Resumed 9 sessions', 2200); post({ type: 'chime' }); showMeters(); });
+      });
+      beat('End', resume + 5700); at(resume + 5700, () => { looping = false; finish(); });
+      return;
+    }
+    // 4. Sessions: the panel opens from the rail; a search narrows every saved conversation to one; a double-click resumes it
+    // in a tenth tab; its pin keeps it on top
+    const sess = opened + 3800; beat('Sessions', sess);
+    at(sess, () => caption('Search all session history from their source'));
+    const sessOpen = click(rbSessions, sess + 700);
+    at(sessOpen, () => openPanel('sessions'));
+    const focus = click(() => $('srch'), sessOpen + 700);
+    at(focus, () => $('srch').classList.add('focus'));
+    type(() => $('srch'), 'privacy', focus + 300, 170, typed => {
+      let n = 0;
+      [...$('srows').children].forEach((r, i) => { const hit = SESSIONS[i].n.toLowerCase().includes(typed); r.classList.toggle('hide', !hit); if (hit) n++; });
+      $('scnt').textContent = `${n} of ${SESSIONS.length} conversations`;
+    });
+    const typed = focus + 300 + 7 * 170;
+    at(typed + 400, () => caption('Resume and pin individual sessions'));
+    const row = () => $('srows').children[FOUND_ROW];
+    const resumed = click(row, typed + 800, { dbl: true, ax: .45 });
+    at(resumed, () => {
+      row().classList.add('sel'); $('srch').classList.remove('focus');
+      strp[0].classList.remove('sel');
+      const el = tabEl(found); el.classList.add('in', 'sel', 'working'); strip.appendChild(el); strp.push(el);
+      // the session loads for about a second, then its transcript prints and the tab comes to rest
+      const pane = paneEl(found, ctxOf(found, 1), 'loading'); setLayout([pane], 'one'); at(150, () => pane.classList.add('in')); settle(pane, 1100);
+      setCount(10, 2, 10);
+      at(1100, () => { el.classList.remove('working'); el.classList.add('rest'); setCount(10, 1, 10); });
+    });
+    const pinned = click(() => row().querySelector('.pin'), resumed + 900);
+    at(pinned, () => { row().classList.add('pinned'); showNotice('Pinned to the top of Sessions', 2000); });
+    // 5. Folders: the panel switches to the folders; one's menu gives it an emoji, a color and a sound, which its rows and the strip's indicator wear
+    const work = pinned + 1800; beat('Folders', work);
+    at(work, () => caption('Folders are where sessions start; each is a workspace of its name'));
+    const workOpen = click(rbFolders, work + 700);
+    at(workOpen, () => openPanel('folders'));
+    const frow = () => panel.querySelectorAll('.row')[2];
+    const picked = click(frow, workOpen + 400);
+    at(picked, () => {
+      frow().classList.add('sel');
+      const t = filmTabs[3], card = $('mcard');
+      card.style.setProperty('--tc', '#B07AC4');
+      card.innerHTML = `<div class="n"><span class="e">${esc(t.e)}</span>${esc(t.f)}</div><div class="p">…\\${esc(t.f)}</div><div class="acts"><span class="em">${ICO.emoji}</span><span class="co"><i class="sw"></i></span><span class="sp">${ICO.speaker}<span class="wave">chime</span></span></div>`;
+      at(80, () => card.classList.add('in'));
+    });
+    at(picked + 500, () => caption('And… set emojis, colors, and agent-done alert sounds'));
+    const emoji = click(() => $('mcard').querySelector('.em'), picked + 700);
+    at(emoji, () => {
+      const card = $('mcard'); card.querySelector('.em').classList.add('hot'); card.querySelector('.n .e').textContent = '🎯';
+      filmTabs[3].e = '🎯';
+      const icon = frow().querySelector('.e, .fi'); icon.outerHTML = '<span class="e">🎯</span>';
+    });
+    const color = click(() => $('mcard').querySelector('.co'), emoji + 500);
+    at(color, () => {
+      const card = $('mcard'); card.querySelector('.em').classList.remove('hot'); card.querySelector('.co').classList.add('hot');
+    });
+    const sound = click(() => $('mcard').querySelector('.sp'), color + 500);
+    at(sound, () => { const card = $('mcard'); card.querySelector('.co').classList.remove('hot'); card.querySelector('.sp').classList.add('hot'); post({ type: 'chime' }); });
+    const shut = click(() => panel.querySelector('.hd .x'), sound + 1300, { leave: 500 });
+    at(shut, () => { caption(''); closePanel(); });
+    // 6. the first tab's agent finishes its turn: named first, then the tab's ring becomes the Your turn blink and the chime
+    // rings; the pointer opens the tab and the finished transcript is there, so the blink and the chime mean something before F6
+    const done = shut + 1200; beat('Finished', done);
+    at(done, () => { caption('An agent indicator blinks and chimes when ready for your review'); strp[0].classList.add('mark'); });
+    at(done + 1800, () => { strp[0].classList.replace('working', 'ready'); setCount(10, 0, 10); post({ type: 'chime' }); });
+    const seen = click(() => strp[0], done + 3300, { leave: 900 });
+    at(seen, () => {
+      strp[0].classList.remove('mark', 'ready'); strp[0].classList.add('rest', 'sel'); strp[9].classList.remove('sel');
+      const pane = paneEl(filmTabs[0], ctxOf(filmTabs[0], 0)); pane.classList.add('in'); setLayout([pane], 'one');
+    });
+    // 7. F6: the three tabs in one folder are named and ringed first; the key goes down over the first (the command is on the
+    // workspace's menu and the key since November 8, 2026, no longer on the rail), and two tabs slide into the first, which splits into three panes
+    const f6 = seen + 3200; beat('F6', f6);
+    at(f6, () => { caption('3 Repos tabs below share the same folder'); [0, 6, 8].forEach(i => strp[i].classList.add('mark')); });
+    at(f6 + 3400, () => caption('F6 consolidates these into a single tab to keep your workspace clean'));
+    const join = click(() => strp[0], f6 + 4300, { key: 'F6', leave: 1000 });
+    at(join, () => {
+      const first = paneEl(filmTabs[0], ctxOf(filmTabs[0], 0)); first.classList.add('in'); setLayout([first], 'one');
+      const home = rel(strp[0]);
+      [6, 8].forEach((i, j) => at(j * 120, () => {
+        const from = rel(strp[i]);
+        strp[i].style.setProperty('--dx', (home.x + home.w / 2 - from.x - from.w / 2) + 'px');
+        strp[i].classList.remove('mark'); strp[i].classList.add('join');
+      }));
+      at(950, () => { [6, 8].forEach(i => strp[i].classList.add('gone')); strp[0].classList.remove('mark'); });
+      // the pane splits once the tabs have arrived; the first pane is placed already showing, so the transcript never blinks out
+      at(700, () => {
+        const panes = setLayout([first, paneEl(filmTabs[6], ctxOf(filmTabs[6], 1)), paneEl(filmTabs[8], ctxOf(filmTabs[8], 2))], 'three');
+        panes.slice(1).forEach((p, i) => at(150 + i * 220, () => p.classList.add('in')));
+      });
+      at(1300, () => { setCount(10, 0, 8); showNotice('2 tabs joined ' + esc(filmTabs[0].f), 2400); });
+    });
+    // 8. a tab dragged into a pane
+    const drag = join + 4000; beat('Drag', drag);
+    at(drag, () => caption('Drag sessions anywhere with up to 16 panes per tab'));
+    at(drag + 1500, () => { const t = rel(strp[4]); cursorTo(t.x + t.w / 2 - 2, t.y + 6); cursor.classList.add('in'); });
+    at(drag + 2300, () => { cursor.classList.add('press'); strp[4].classList.add('lift'); ghost.innerHTML = `<div class="mtab in">${strp[4].innerHTML}</div>`; ghost.classList.add('in'); });
+    at(drag + 2600, () => { const p = rel(body.children[2]); cursorTo(p.x + p.w * 0.75, p.y + p.h * 0.55); });
+    at(drag + 3450, () => {
+      const p = rel(body.children[2]), m = rel(mini);
+      Object.assign(dropmark.style, { left: (p.x - m.x + p.w / 2) + 'px', top: (p.y - m.y) + 'px', width: (p.w / 2) + 'px', height: p.h + 'px' });
+      dropmark.textContent = filmTabs[4].n; dropmark.classList.add('in');
+    });
+    at(drag + 4300, () => {
+      cursor.classList.remove('press'); ghost.classList.remove('in'); dropmark.classList.remove('in'); strp[4].classList.add('gone');
+      const panes = setLayout(closedTabs()[0].panes.map((t, j) => paneEl(t, ctxOf(t, j))), 'four');
+      panes.forEach((p, i) => at(i === 3 ? 150 : 0, () => p.classList.add('in')));
+      setCount(10, 0, 7);
+    });
+    at(drag + 5100, () => cursor.classList.remove('in'));
+    // 9. F11: the window fills the display, the rail and the taskbar gone; the caption moves down over the panes' empty lower
+    // half, since the window now covers the top
+    const f11 = drag + 6000; beat('F11', f11);
+    at(f11, () => { cap.classList.add('low'); caption('F11 · Go full screen on the display of your choice'); mini.classList.add('full'); });
+    // the sidebar is still there: the pointer at the display's edge slides it in, and away from the edge slides it out
+    at(f11 + 1100, () => { cursorTo(380, 430, true); cursor.classList.add('in'); });
+    at(f11 + 1200, () => cursorTo(2, 330));
+    at(f11 + 2200, () => { caption('In full screen the sidebar slides in at the edge'); mini.classList.add('reveal'); });
+    at(f11 + 3500, () => cursorTo(300, 430));
+    at(f11 + 3800, () => mini.classList.remove('reveal'));
+    at(f11 + 4200, () => cursor.classList.remove('in'));
+    at(f11 + 4500, () => mini.classList.remove('full'));
+    at(f11 + 5000, () => { caption(''); cap.classList.remove('low'); });
+    // 10. Settings: the Side Panel and Tabs choices put the sidebar on the right and the tab bar at the bottom, the window
+    // re-laid as the real one is; then the Theme choice turns the window Outrun and the Ready chime choice plays a sound. Both
+    // stay, through Quit and the reopening, as settings do
+    const tune = f11 + 5400; beat('Layout', tune);
+    at(tune, () => caption('The sidebar and tab bar can move to the right or the bottom'));
+    const setOpen = click(rbSettings, tune + 500);
+    at(setOpen, () => openPanel('settings'));
+    const side = click(() => $('stSide'), setOpen + 500);
+    at(side, () => { $('stSide').querySelector('.n').textContent = 'Right'; mini.classList.add('right'); });
+    const tabs = click(() => $('stTabs'), side + 800);
+    at(tabs, () => { $('stTabs').querySelector('.n').textContent = 'Bottom'; mini.classList.add('bottom'); });
+    const look = tabs + 1500; beat('Themes', look);
+    at(look, () => caption('Import themes and alert sounds'));
+    // three themes in a row, the last of them kept
+    const themed = click(() => $('stTheme'), look + 600);
+    at(themed, () => { $('stTheme').querySelector('.n').textContent = 'Outrun'; applyTheme(THEMES.outrun); });
+    const themed2 = click(() => $('stTheme'), themed + 700, { quick: true });
+    at(themed2, () => { $('stTheme').querySelector('.n').textContent = 'Aurora'; applyTheme(THEMES.aurora); });
+    const themed3 = click(() => $('stTheme'), themed2 + 700, { quick: true });
+    at(themed3, () => { $('stTheme').querySelector('.n').textContent = 'SicTerm Light'; applyTheme(THEMES.light); });
+    const rang = click(() => $('stSound'), themed3 + 900);
+    at(rang, () => { $('stSound').querySelector('.n').textContent = 'Glass'; post({ type: 'chime' }); });
+    const shutSettings = click(() => panel.querySelector('.hd .x'), rang + 1200, { leave: 500 });
+    at(shutSettings, () => { caption(''); closePanel(); });
+    // 11. Quit: every agent exits cleanly, then the window goes
+    const quit = shutSettings + 1100; beat('Quit', quit);
+    at(quit, () => {
+      caption('When quitting, sessions are gracefully closed to ensure a graceful resume');
+      const sessions = filmTabs.concat(found);
+      dlg.innerHTML = `<h4>Closing sessions cleanly</h4>${sessions.map(t => `<div class="r">${tile(t.a)}<span>${esc(t.n)}</span><span class="st">Exiting…</span></div>`).join('')}<div class="ft"><span class="sum">${sessions.length} sessions · each sent its exit command</span><span class="b">Force quit now</span></div>`;
+      at(300, () => dlg.classList.add('in'));
+      sessions.forEach((t, i) => at(900 + i * 180, () => { const r = dlg.querySelectorAll('.r')[i]; r.classList.add('done'); r.querySelector('.st').textContent = 'Exited'; strp[i].classList.remove('rest', 'working'); strp[i].classList.add('off'); }));
+      at(900 + sessions.length * 180, () => { dlg.querySelector('.sum').textContent = `All ${sessions.length} sessions exited`; setCount(0, 0, 7); });
+      at(900 + sessions.length * 180 + 700, () => { dlg.classList.remove('in'); mini.classList.add('closed'); tbtn.classList.remove('run'); });
+    });
+    // the dark between the day and the next launch is short, so the mark there reads as a chapter break, not an ending
+    // no dark between the day and the reopening: the window is opened again from the taskbar where it just closed
+    at(quit + 4000, () => cycle(false));
+  }
+
+  // ---------- the card: what SicTerm found on this PC ----------
+  function listNames(names) { return names.length === 1 ? names[0] : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]; }
+  function cardHtml() {
+    const have = C.agents;
+    const agentsLine = !C.ready
+      ? 'Looking for the agents and reading their histories…'
+      : have.length
+        ? `<span class="tiles">${have.map(a => tile(a.id)).join('')}</span><b>${esc(listNames(have.map(a => a.name)))}</b> detected, each launched as your own install, unmodified.`
+        : 'No agent found yet. SicTerm looks for <b>Claude Code, Codex, Hermes and OpenCode</b> on PATH; Settings → Agents says where it looked, and finds one as soon as it is installed.';
+    const histLine = !C.ready ? '' : C.conversations
+      ? `<b>${C.conversations} saved conversation${C.conversations === 1 ? '' : 's'}</b> in ${C.folders} folder${C.folders === 1 ? '' : 's'}, read from the agents' own histories.` + (C.latest ? ` The latest, ${esc(C.latest.when)}: <b>${esc(C.latest.title)}</b>, in <span class="m">${esc(C.latest.folder)}</span>.` : '')
+      : 'No saved conversations yet. The first one appears in Sessions as soon as an agent writes it, searchable by title, folder and what was said.';
+    const pinLine = !C.ready ? '' : C.pinned
+      ? `<b>${C.pinned} workspace${C.pinned === 1 ? '' : 's'} from your history</b>, each with its folder as its home. A workspace's home can take an emoji, a tab color and a sound.`
+      : 'Workspaces group your tabs by project. Once there is history, one is made for each folder used most.';
+    const line = (ico, text) => text ? `<div class="ln"><span class="ico">${ico}</span><span>${text}</span></div>` : '';
+    return `
+      <div class="top">${markSvg(48)}<div>${wordmark(26)}<div class="sub">One window for Claude Code, Codex, Hermes and OpenCode, in the folders you already work in. Close it with ten sessions running; open it with ten sessions waiting.</div></div></div>
+      <div class="ctx"><div class="ey">On this PC</div>${line(ICO.agents, agentsLine)}${line(ICO.list, histLine)}${line(ICO.pin, pinLine)}</div>
+      <div class="btns"><button type="button" class="btn primary" id="tour">Show me around <span class="k">2 min</span></button><button type="button" class="btn" id="start">Start</button><button type="button" class="link" id="again">Replay</button></div>
+      <div class="foot">Replay any time from Settings → About → Welcome tour. Esc closes this card.</div>`;
+  }
+  function finish() {
+    film.classList.add('ambient');
+    const card = $('card');
+    const fresh = card.hidden;
+    card.innerHTML = cardHtml();
+    card.hidden = false; if (fresh) requestAnimationFrame(() => requestAnimationFrame(() => card.classList.add('in'))); else card.classList.add('in');
+    card.querySelector('#again').onclick = () => { play(); clock.playing = true; };
+    card.querySelector('#start').onclick = () => post({ type: 'start' });
+    card.querySelector('#tour').onclick = () => post({ type: 'tour' });
+    setTimeout(() => { const b = card.querySelector('#tour'); if (b) b.focus({ preventScroll: true }); }, 350);
+    if (fresh) post({ type: 'card' });
+  }
+  // Skip, Esc or a click: the frame the film ends on, the next launch's resumed window, then the card.
+  function jumpToEnd() {
+    clear(); looping = false;
+    caption(''); caption('', 'dark');
+    dark.classList.remove('in'); darkMark.className = 'mk'; led.classList.add('on');
+    desk.classList.remove('off'); desk.classList.add('on'); tbtn.className = 'tbtn run';
+    cursor.className = 'cursor'; ghost.className = 'ghost'; dropmark.className = 'dropmark'; dlg.className = 'mdlg'; key.className = 'key'; notice.classList.remove('in');
+    rail.querySelectorAll('.rb').forEach(b => b.className = 'rb'); mini.querySelectorAll('.callout').forEach(c => c.remove());
+    if (!filmTabs.length) { filmTabs = buildTabs(); found = foundTab(); }
+    // the day's marks on the workspace the Workspaces beat dressed, whether or not the film got that far
+    filmTabs[3].e = '🎯'; filmTabs[3].tc = '#B07AC4';
+    // and the Settings beat's choices: the sidebar on the right, the tab bar at the bottom, the Outrun theme
+    mini.classList.add('right', 'bottom'); applyTheme(THEMES.light);
+    const tabs = closedTabs();
+    strip.innerHTML = ''; strp = tabs.map(s => { const el = tabEl(s.t); el.classList.add('in', 'rest'); strip.appendChild(el); return el; }); strp[0].classList.add('sel');
+    setLayout(tabs[0].panes.map((t, j) => { const p = paneEl(t, ctxOf(t, j)); p.classList.add('in'); return p; }), 'four');
+    setCount(10, 0, 7); showMeters();
+    panel.innerHTML = ''; mini.classList.remove('closed', 'panel', 'full');
+  }
+  function skipToEnd() {
+    if (scrub) { clock.playing = false; seek(total); return; }
+    if ($('card').hidden) { jumpToEnd(); finish(); }
+  }
+
+  // ---------- scrub mode: the toolbar and the clock it drives ----------
+  let total = 0, scrubMarks = [], rafLast = 0, audio;
+  const fmt = ms => { const s = Math.max(0, ms) / 1000; return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}.${Math.floor((s % 1) * 10)}`; };
+  function startScrub() {
+    const bar = document.createElement('div'); bar.className = 'scrub'; bar.id = 'scrub';
+    bar.innerHTML = `<button type="button" id="sPlay" title="Play or pause (Space)">❚❚</button><span class="t" id="sNow">0:00.0</span><div class="range"><input type="range" id="sBar" min="0" max="1000" step="50" value="0" title="Scrub (← → a second, with Shift five; Home, End)"><div class="ticks" id="sTicks"></div></div><span class="t" id="sTotal">0:00.0</span><select id="sSpeed" title="Speed"><option value=".25">¼×</option><option value=".5">½×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select><span class="chime" id="sChime">♪ chime</span><span class="err" id="sErr"></span><div class="beats" id="sBeats"></div>`;
+    document.body.appendChild(bar);
+    fit();
+    // a silent run to the end gives the film's length and its beats
+    probing = true; document.documentElement.classList.add('noanim');
+    play(); run(Infinity); total = lastFired; scrubMarks = beats.slice();
+    document.documentElement.classList.remove('noanim'); probing = false;
+    $('sBar').max = total; $('sTotal').textContent = fmt(total);
+    $('sTicks').innerHTML = scrubMarks.map(b => `<i style="left:${(b.t / total * 100).toFixed(2)}%" title="${esc(b.name)}"></i>`).join('');
+    $('sBeats').innerHTML = scrubMarks.map((b, i) => `<button type="button" data-i="${i}" title="${fmt(b.t)}">${esc(b.name)}</button>`).join('');
+    $('sBeats').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { seek(scrubMarks[+b.dataset.i].t); b.blur(); } });
+    $('sPlay').addEventListener('click', () => { togglePlay(); $('sPlay').blur(); });
+    $('sBar').addEventListener('input', () => { clock.playing = false; seek(+$('sBar').value); });
+    $('sSpeed').addEventListener('change', () => { clock.speed = +$('sSpeed').value; $('sSpeed').blur(); });
+    seek(0); clock.playing = true;
+    requestAnimationFrame(tick);
+  }
+  // To a moment: on from here, or from the start when going back or after the end, with every transition and animation held
+  // so the film lands on that frame
+  function seek(ms) {
+    document.documentElement.classList.add('noanim');
+    if (ms < clock.now || (!queue.length && !looping)) play();
+    run(ms);
+    void document.body.offsetWidth;
+    document.documentElement.classList.remove('noanim');
+    scrubSync();
+  }
+  function tick(ts) {
+    const dt = rafLast ? ts - rafLast : 0; rafLast = ts;
+    if (clock.playing) {
+      if (queue.length) run(clock.now + dt * clock.speed); else clock.playing = false;
+      scrubSync();
+    }
+    requestAnimationFrame(tick);
+  }
+  function togglePlay() {
+    if (!queue.length && !looping) { play(); clock.playing = false; }
+    clock.playing = !clock.playing; scrubSync();
+  }
+  function scrubSync() {
+    const bar = $('sBar'); if (!bar) return;
+    bar.value = Math.min(clock.now, total); $('sNow').textContent = fmt(clock.now);
+    $('sErr').textContent = scrubErrors ? `⚠ ${scrubErrors} error${scrubErrors > 1 ? 's' : ''}, see the console` : '';
+    $('sPlay').textContent = clock.playing ? '❚❚' : (!queue.length && !looping ? '↺' : '▶');
+    let cur = -1; scrubMarks.forEach((b, i) => { if (b.t <= clock.now + 1) cur = i; });
+    [...$('sBeats').children].forEach((b, i) => b.classList.toggle('cur', i === cur));
+  }
+  function scrubKeys(e) {
+    if (e.target && (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT')) return false;
+    const step = e.shiftKey ? 5000 : 1000;
+    if (e.key === ' ') togglePlay();
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { clock.playing = false; seek(Math.max(0, Math.min(total, clock.now + (e.key === 'ArrowLeft' ? -step : step)))); }
+    else if (e.key === 'Home') { clock.playing = false; seek(0); }
+    else if (e.key === 'End') { clock.playing = false; seek(total); }
+    else return false;
+    e.preventDefault(); return true;
+  }
+  // The toolbar's cue for the chime the window would ring: a word lit for a moment, and two notes
+  function scrubChime() {
+    const el = $('sChime'); if (el) { el.classList.add('on'); setTimeout(() => el.classList.remove('on'), 700); }
+    try {
+      audio = audio || new AudioContext();
+      if (audio.state === 'suspended') audio.resume();
+      const t0 = audio.currentTime;
+      [[880, 0], [1174.66, .13]].forEach(([f, d]) => {
+        const o = audio.createOscillator(), g = audio.createGain();
+        o.frequency.value = f; g.gain.setValueAtTime(.0001, t0 + d); g.gain.exponentialRampToValueAtTime(.18, t0 + d + .02); g.gain.exponentialRampToValueAtTime(.0001, t0 + d + .4);
+        o.connect(g).connect(audio.destination); o.start(t0 + d); o.stop(t0 + d + .45);
+      });
+    } catch (e) { /* no audio: the word is the cue */ }
+  }
+
+  // ---------- the host ----------
+  // The themes the Settings beat clicks through, as the host would send them (Sic.Core/Appearance/Themes, the rail composed
+  // over the base): Outrun, Aurora, then SicTerm Light, which the film keeps
+  const THEMES = {
+    outrun: { name: 'Outrun', base: '#1B1036', rail: '#160D2B', panel: '#261650', layer: 'rgba(255,255,255,.059)', hover: 'rgba(255,255,255,.078)', stroke: 'rgba(247,168,224,.149)', strokeStrong: 'rgba(247,168,224,.251)', text: '#FFFFFF', textSecondary: '#F7A8E0', textTertiary: 'rgba(247,168,224,.651)', stripText: 'rgba(255,255,255,.702)', accent: '#FF3EA5', accentText: '#1B1036', accentSoft: 'rgba(255,62,165,.2)', success: '#2EF2B0', warning: '#FFD23F', danger: '#FF6B2B', displayFont: 'Sora' },
+    aurora: { name: 'Aurora', base: '#08131E', rail: '#060F18', panel: '#0E1E2E', layer: 'rgba(255,255,255,.059)', hover: 'rgba(255,255,255,.078)', stroke: 'rgba(158,245,208,.149)', strokeStrong: 'rgba(158,245,208,.251)', text: '#FFFFFF', textSecondary: '#9EF5D0', textTertiary: 'rgba(158,245,208,.651)', stripText: 'rgba(255,255,255,.702)', accent: '#3DF2A8', accentText: '#08131E', accentSoft: 'rgba(61,242,168,.2)', success: '#A3E35D', warning: '#FFD166', danger: '#FF6B8B', displayFont: 'Sora' },
+    light: { name: 'SicTerm Light', base: '#F7F8F9', rail: '#003050', panel: '#FFFFFF', layer: '#FFFFFF', hover: 'rgba(0,0,0,.039)', stroke: '#E2E6E9', strokeStrong: '#C4CBCF', text: '#3E4549', textSecondary: '#495055', textTertiary: '#60686D', stripText: 'rgba(255,255,255,.8)', accent: '#C04F1A', accentText: '#FFFFFF', accentSoft: 'rgba(192,79,26,.122)', success: '#1E7D3C', warning: '#A98519', danger: '#B0193A', displayFont: 'Sora' },
+  };
+  const themedVars = new Set();
+  function applyTheme(t) {
+    const r = document.documentElement.style;
+    const set = (name, value) => { if (value) { r.setProperty(name, value); themedVars.add(name); } };
+    set('--base', t.base); set('--rail', t.rail); set('--panel', t.panel); set('--layer', t.layer); set('--hover', t.hover);
+    set('--stroke', t.stroke); set('--stroke-strong', t.strokeStrong); set('--text', t.text); set('--text2', t.textSecondary); set('--text3', t.textTertiary); set('--strip-text', t.stripText);
+    set('--accent', t.accent); set('--accent-ink', t.accentText); set('--accent-soft', t.accentSoft);
+    set('--ok', t.success); set('--warn', t.warning); set('--danger', t.danger);
+    set('--h-hermes', t.hermes); set('--h-claude', t.claude); set('--h-codex', t.codex); set('--h-opencode', t.opencode);
+    if (t.displayFont) set('--display', `"${t.displayFont}", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif`);
+  }
+  // Back to the host's theme, or the page's own, when the film starts again after the Settings beat changed it
+  function restoreTheme() {
+    if (hostTheme) applyTheme(hostTheme);
+    else { themedVars.forEach(name => document.documentElement.style.removeProperty(name)); themedVars.clear(); }
+  }
+  if (host) host.addEventListener('message', event => {
+    const m = event.data || {};
+    if (m.type === 'init') { if (m.theme) { hostTheme = m.theme; applyTheme(m.theme); } if (!scrub) play(); }
+    else if (m.type === 'context') { C = { ...C, ...m }; if (!$('card').hidden) finish(); }
+    else if (m.type === 'skip') skipToEnd();
+    else if (m.type === 'replay') play();
+  });
+  addEventListener('keydown', e => {
+    if (scrub && scrubKeys(e)) return;
+    if (e.key === 'Escape') { e.preventDefault(); if (!$('card').hidden) post({ type: 'start' }); else skipToEnd(); }
+    else if (e.key === 'Enter' && !$('card').hidden && document.activeElement && document.activeElement.tagName !== 'BUTTON') { e.preventDefault(); post({ type: 'tour' }); }
+  });
+  $('film').addEventListener('click', () => { if (scrub) togglePlay(); else if ($('card').hidden) skipToEnd(); });
+  fit();
+  post({ type: 'ready' });
+  // Outside the app (opened in a browser) the film plays with the sample facts.
+  if (scrub) startScrub(); else if (!host) play();
+})();
+</script>
+</body>
+</html>

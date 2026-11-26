@@ -1,0 +1,43 @@
+// Catppuccin Latte for SIC. terminal: github.com/catppuccin/windows-terminal latte.json; chrome: the Catppuccin palette (base, mantle, crust, text, subtext0, overlay1, overlay0, mauve, green, yellow, red)
+{
+  "id": "catppuccin-latte",
+  "name": "Catppuccin Latte",
+  "family": "Catppuccin",
+  "light": true,
+  "chrome": {
+    "base": "#EFF1F5",
+    "rail": "#DCE0E8",
+    "panel": "#E6E9EF",
+    "text": "#4C4F69",
+    "textSecondary": "#6C6F85",
+    "textTertiary": "#8C8FA1",
+    "neutral": "#9CA0B0",
+    "accent": "#8839EF",
+    "success": "#40A02B",
+    "warning": "#DF8E1D",
+    "danger": "#D20F39"
+  },
+  "terminal": {
+    "name": "Catppuccin Latte",
+    "background": "#EFF1F5",
+    "foreground": "#4C4F69",
+    "cursorColor": "#DC8A78",
+    "selectionBackground": "#ACB0BE",
+    "black": "#5C5F77",
+    "red": "#D20F39",
+    "green": "#40A02B",
+    "yellow": "#DF8E1D",
+    "blue": "#1E66F5",
+    "purple": "#EA76CB",
+    "cyan": "#179299",
+    "white": "#ACB0BE",
+    "brightBlack": "#ACB0BE",
+    "brightRed": "#D20F39",
+    "brightGreen": "#40A02B",
+    "brightYellow": "#DF8E1D",
+    "brightBlue": "#1E66F5",
+    "brightPurple": "#EA76CB",
+    "brightCyan": "#179299",
+    "brightWhite": "#BCC0CC"
+  }
+}

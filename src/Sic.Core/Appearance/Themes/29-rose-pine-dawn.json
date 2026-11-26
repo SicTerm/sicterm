@@ -1,0 +1,43 @@
+// Rosé Pine Dawn for SIC. terminal: github.com/rose-pine/windows-terminal rose-pine-dawn.scheme.json; chrome: the palette (base, overlay, surface, text, subtle, muted, rose, pine, gold, love)
+{
+  "id": "rose-pine-dawn",
+  "name": "Rosé Pine Dawn",
+  "family": "Rosé Pine",
+  "light": true,
+  "chrome": {
+    "base": "#FAF4ED",
+    "rail": "#F2E9E1",
+    "panel": "#FFFAF3",
+    "text": "#575279",
+    "textSecondary": "#797593",
+    "textTertiary": "#9893A5",
+    "neutral": "#9893A5",
+    "accent": "#D7827E",
+    "success": "#286983",
+    "warning": "#EA9D34",
+    "danger": "#B4637A"
+  },
+  "terminal": {
+    "name": "rose-pine-dawn",
+    "background": "#faf4ed",
+    "foreground": "#575279",
+    "cursorColor": "#9893a5",
+    "selectionBackground": "#dfdad9",
+    "black": "#f2e9e1",
+    "red": "#b4637a",
+    "green": "#286983",
+    "yellow": "#ea9d34",
+    "blue": "#56949f",
+    "purple": "#907aa9",
+    "cyan": "#d7827e",
+    "white": "#575279",
+    "brightBlack": "#797593",
+    "brightRed": "#b4637a",
+    "brightGreen": "#286983",
+    "brightYellow": "#ea9d34",
+    "brightBlue": "#56949f",
+    "brightPurple": "#907aa9",
+    "brightCyan": "#d7827e",
+    "brightWhite": "#575279"
+  }
+}

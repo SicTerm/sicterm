@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>SicTerm</AssemblyName>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <EnableMsixTooling>false</EnableMsixTooling>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishSingleFile>false</PublishSingleFile>
+    <!-- The managed code is compiled ahead of time at publish, so a launch runs precompiled code instead of jitting the app, Sic.Core
+         and the Windows App SDK projections first (docs/decisions/performance-pass.md). -->
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\brand\sic.ico</ApplicationIcon>
+    <Version>0.9.63</Version>
+    <Product>SicTerm</Product>
+    <AssemblyTitle>SicTerm</AssemblyTitle>
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
+    <PackageReference Include="Velopack" />
+    <!-- The console host under every pane: conpty.dll beside SicTerm.exe, OpenConsole.exe in x64\ and arm64\ (docs/decisions/console-host.md). -->
+    <PackageReference Include="Microsoft.Windows.Console.ConPTY" />
+    <ProjectReference Include="../Sic.Core/Sic.Core.csproj" />
+    <!-- SicTermStatusLine.exe, copied beside SicTerm.exe: Claude Code's status line in the panes SIC starts (Sic.Core.Limits.ClaudeStatusLine). -->
+    <ProjectReference Include="../Sic.StatusLine/Sic.StatusLine.csproj" />
+    <Content Update="Assets/terminal/**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- The first-run film and card (docs/decisions/first-run.md), one page served to a WebView2 over the tab area. -->
+    <Content Update="Assets/welcome/**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Update="Assets/icons/**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Update="Assets/brand/**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- Sora and Azeret Mono (SIL Open Font License, each with its OFL.txt): the headings, the wordmark and the welcome page, the same on a PC that has neither installed. -->
+    <Content Update="Assets/fonts/**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- The MIT License and the third-party notices, beside SicTerm.exe in every build and install. -->
+    <Content Include="../../LICENSE;../../THIRD-PARTY-NOTICES.md" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- The chrome's drawings of the mark are baked into Controls/MarkGeometry.g.cs (scripts/Build-MarkGeometry.ps1), not read at run time. -->
+    <Content Remove="Assets/brand/chrome/**" />
+    <None Include="Assets/brand/chrome/**" />
+    <!-- The identity package's manifest is packed by scripts\Build-IdentityPackage.ps1, not by the app's build, which must not see an AppxManifest. -->
+    <Content Remove="Package/**" />
+    <None Include="Package/**" />
+  </ItemGroup>
+  <Target Name="PublishApplicationResources" AfterTargets="ComputeFilesToPublish">
+    <Error Condition="!Exists('$(ProjectPriFullPath)')" Text="The application resource index was not generated." />
+    <ItemGroup>
+      <ResolvedFileToPublish Include="$(ProjectPriFullPath)" RelativePath="$(TargetName).pri" CopyToPublishDirectory="PreserveNewest" />
+      <ResolvedFileToPublish Include="$(TargetDir)App.xbf" RelativePath="App.xbf" CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
+</Project>

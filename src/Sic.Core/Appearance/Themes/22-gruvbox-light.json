@@ -1,0 +1,43 @@
+// Gruvbox Light for SIC. terminal: github.com/mbadolato/iTerm2-Color-Schemes windowsterminal/Gruvbox Light.json; chrome: Gruvbox light bg0, bg1, bg0_h, fg1, fg2, fg4, gray, orange, and the faded green, yellow, red
+{
+  "id": "gruvbox-light",
+  "name": "Gruvbox Light",
+  "family": "Gruvbox",
+  "light": true,
+  "chrome": {
+    "base": "#FBF1C7",
+    "rail": "#EBDBB2",
+    "panel": "#F9F5D7",
+    "text": "#3C3836",
+    "textSecondary": "#504945",
+    "textTertiary": "#7C6F64",
+    "neutral": "#928374",
+    "accent": "#D65D0E",
+    "success": "#79740E",
+    "warning": "#B57614",
+    "danger": "#9D0006"
+  },
+  "terminal": {
+    "name": "Gruvbox Light",
+    "background": "#fbf1c7",
+    "foreground": "#3c3836",
+    "cursorColor": "#3c3836",
+    "selectionBackground": "#3c3836",
+    "black": "#fbf1c7",
+    "red": "#cc241d",
+    "green": "#98971a",
+    "yellow": "#d79921",
+    "blue": "#458588",
+    "purple": "#b16286",
+    "cyan": "#689d6a",
+    "white": "#7c6f64",
+    "brightBlack": "#928374",
+    "brightRed": "#9d0006",
+    "brightGreen": "#79740e",
+    "brightYellow": "#b57614",
+    "brightBlue": "#076678",
+    "brightPurple": "#8f3f71",
+    "brightCyan": "#427b58",
+    "brightWhite": "#3c3836"
+  }
+}

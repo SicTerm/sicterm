@@ -1,0 +1,5 @@
+{
+  "Endpoint": "https://scus.codesigning.azure.net/",
+  "CodeSigningAccountName": "SicTerm",
+  "CertificateProfileName": "SicTerm"
+}

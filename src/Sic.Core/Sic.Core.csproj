@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <!-- conpty.dll, which Terminals/ConPtyNative.cs calls. The projects that run terminals (Sic.App, Sic.Core.Tests) reference
+         the package themselves; its build files copy OpenConsole.exe beside them, so they are left out here, where they
+         would reach those outputs a second time. -->
+    <PackageReference Include="Microsoft.Windows.Console.ConPTY" ExcludeAssets="build" />
+    <InternalsVisibleTo Include="Sic.Core.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The built-in themes, theme files like the user's own, read by ThemeCatalog in their numbered order. -->
+    <EmbeddedResource Include="Appearance\Themes\*.json" LogicalName="Sic.Core.Themes.%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

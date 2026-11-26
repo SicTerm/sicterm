@@ -1,0 +1,3 @@
+* text=auto
+# Built by src/terminal (esbuild writes LF); keep the checkout identical so a build leaves the tree clean.
+src/Sic.App/Assets/terminal/** text eol=lf

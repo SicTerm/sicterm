@@ -1,0 +1,43 @@
+// Nord for SIC. terminal: github.com/mbadolato/iTerm2-Color-Schemes windowsterminal/Nord.json; chrome: the Nord palette (nord0, nord1, nord6, nord4, nord3, nord8, nord14, nord13, nord11)
+{
+  "id": "nord",
+  "name": "Nord",
+  "family": "Nord",
+  "light": false,
+  "chrome": {
+    "base": "#2E3440",
+    "rail": "#00000026",
+    "panel": "#3B4252",
+    "text": "#ECEFF4",
+    "textSecondary": "#D8DEE9",
+    "textTertiary": "#D8DEE9A6",
+    "neutral": "#4C566A",
+    "accent": "#88C0D0",
+    "success": "#A3BE8C",
+    "warning": "#EBCB8B",
+    "danger": "#BF616A"
+  },
+  "terminal": {
+    "name": "Nord",
+    "background": "#2e3440",
+    "foreground": "#d8dee9",
+    "cursorColor": "#eceff4",
+    "selectionBackground": "#eceff4",
+    "black": "#3b4252",
+    "red": "#bf616a",
+    "green": "#a3be8c",
+    "yellow": "#ebcb8b",
+    "blue": "#81a1c1",
+    "purple": "#b48ead",
+    "cyan": "#88c0d0",
+    "white": "#e5e9f0",
+    "brightBlack": "#596377",
+    "brightRed": "#bf616a",
+    "brightGreen": "#a3be8c",
+    "brightYellow": "#ebcb8b",
+    "brightBlue": "#81a1c1",
+    "brightPurple": "#b48ead",
+    "brightCyan": "#8fbcbb",
+    "brightWhite": "#eceff4"
+  }
+}
