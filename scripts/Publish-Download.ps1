@@ -11,7 +11,8 @@ param(
 Publishes Setup to https://download.sicterm.app/v<version>/SicTerm-win-Setup.exe, a Cloudflare R2 bucket on SicTerm's domain, and
 outputs that address. The Microsoft Store installs SicTerm from it: Partner Center takes an installer URL only when it answers
 the file itself, and a GitHub release asset answers with a redirect. The file at an address must never change once the Store
-has it, so a version already there is left as it is when it is the same file, and refused when it is not.
+has it, so a version already there is left as it is when it is the same file, and refused when it is not. Whether it is there
+is asked of R2, never of the public address, which Cloudflare would then answer with a cached 404 for hours.
 
 It uploads with the S3 API that R2 offers, through the curl.exe that Windows ships (--aws-sigv4), and needs an R2 API token for
 the bucket in three environment variables, kept out of the repository and out of the command line:
@@ -38,6 +39,22 @@ $key = "v$Version/SicTerm-win-Setup.exe"
 $public = "$publicBase/$key"
 $hash = (Get-FileHash -LiteralPath $Setup -Algorithm SHA256).Hash
 
+# The credentials reach curl through its standard input as a config file, never as an argument another process could read.
+$endpoint = "https://$($env:SICTERM_R2_ACCOUNT_ID).r2.cloudflarestorage.com/$bucket/$key"
+$credentials = "user = `"$($env:SICTERM_R2_ACCESS_KEY_ID):$($env:SICTERM_R2_SECRET_ACCESS_KEY)`""
+
+function Get-StoredETag {
+    # The object's ETag from R2 itself, or null when there is none. Asked of R2, not of the public address: Cloudflare caches
+    # a public 404 for hours, so asking there before the upload would leave the address answering 404 after it.
+    $answer = $credentials | & $curl --silent --show-error --config - --aws-sigv4 'aws:amz:auto:s3' --head --output NUL `
+        --dump-header - --write-out '%{http_code}' $endpoint
+    if ($LASTEXITCODE -ne 0) { throw "Asking R2 for $key failed (curl exit code $LASTEXITCODE)." }
+    $code = $answer[-1]
+    if ($code -eq '404') { return $null }
+    if ($code -ne '200') { throw "R2 answered HTTP $code for $key." }
+    ($answer | Where-Object { $_ -match '^etag:\s*"?([^"\s]+)' } | ForEach-Object { $Matches[1] } | Select-Object -First 1)
+}
+
 function Get-PublicHash {
     # The public file's SHA-256, or null when it is not there; throws when the address redirects.
     $file = Join-Path ([IO.Path]::GetTempPath()) ('sicterm-download-' + [guid]::NewGuid().ToString('N'))
@@ -53,15 +70,17 @@ function Get-PublicHash {
     finally { Remove-Item -LiteralPath $file -ErrorAction Ignore }
 }
 
-$existing = Get-PublicHash
-if ($existing -eq $hash) { Write-Host "$public is already this Setup; left as it is." ; return $public }
-if ($existing) { throw "$public already holds a different file. A Store submission may point at it, so it is never replaced; publish under a new version." }
+$stored = Get-StoredETag
+if ($stored) {
+    # A single upload's ETag is the file's MD5; one uploaded in parts (from the dashboard, say) has a -<parts> suffix, and is
+    # compared by downloading it instead, which is safe now that it is known to be there.
+    $same = if ($stored -match '-') { (Get-PublicHash) -eq $hash } else { $stored -eq (Get-FileHash -LiteralPath $Setup -Algorithm MD5).Hash }
+    if ($same) { Write-Host "$public is already this Setup; left as it is."; return $public }
+    throw "$public already holds a different file. A Store submission may point at it, so it is never replaced; publish under a new version."
+}
 
-# The credentials reach curl through its standard input as a config file, never as an argument another process could read.
-$endpoint = "https://$($env:SICTERM_R2_ACCOUNT_ID).r2.cloudflarestorage.com/$bucket/$key"
-"user = `"$($env:SICTERM_R2_ACCESS_KEY_ID):$($env:SICTERM_R2_SECRET_ACCESS_KEY)`"" |
-    & $curl --silent --show-error --fail-with-body --config - --aws-sigv4 'aws:amz:auto:s3' --upload-file $Setup `
-        --header 'Content-Type: application/x-msdownload' $endpoint | Out-Host
+$credentials | & $curl --silent --show-error --fail-with-body --config - --aws-sigv4 'aws:amz:auto:s3' --upload-file $Setup `
+    --header 'Content-Type: application/x-msdownload' $endpoint | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "Uploading $key to R2 failed (curl exit code $LASTEXITCODE)." }
 
 $published = Get-PublicHash
