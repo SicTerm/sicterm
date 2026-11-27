@@ -7,8 +7,7 @@ namespace Sic.Core.Tests;
 
 public sealed class ConPtySessionTests(Xunit.Abstractions.ITestOutputHelper testOutput)
 {
-    private static readonly string PowerShell = Environment.GetEnvironmentVariable("COMMAND_CENTRAL_PWSH")
-        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PowerShell", "7", "pwsh.exe");
+    private static string PowerShell => TestShells.PowerShell;
 
     [Fact]
     public async Task Start_RunsInTheRequestedWorkingDirectory()

@@ -119,8 +119,7 @@ public sealed class AgentLaunchBuilderTests
         Assert.DoesNotContain("--version", Encoding.Unicode.GetString(Convert.FromBase64String(claude.Arguments.Last())));
     }
 
-    private static readonly string PowerShell = Environment.GetEnvironmentVariable("COMMAND_CENTRAL_PWSH")
-        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PowerShell", "7", "pwsh.exe");
+    private static string PowerShell => TestShells.PowerShell;
 
     /// <summary>
     /// The launch script, run in PowerShell against a stand-in opencode on PATH: a 1.x answers "--version" the way 1.18.35
@@ -177,7 +176,7 @@ public sealed class AgentLaunchBuilderTests
         finally { Directory.Delete(folder, recursive: true); }
     }
 
-    private static readonly string WindowsPowerShell = Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
+    private static string WindowsPowerShell => TestShells.WindowsPowerShell;
 
     /// <summary>
     /// The launch script against npm's three shims for a tool (sh, .cmd and .ps1, stand-ins here), in PowerShell 7 and in Windows

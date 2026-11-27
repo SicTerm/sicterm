@@ -51,22 +51,8 @@ internal static class AgentDetection
     /// path so a powershell.exe elsewhere on PATH is never the one taken. A Store install on a fresh Windows 11 has no pwsh
     /// (seen November 26, 2026), and every script SicTerm runs in the shell is written to run in both.
     /// </summary>
-    internal static string PowerShellPath
-    {
-        get
-        {
-            var standard = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PowerShell", "7", "pwsh.exe");
-            if (File.Exists(standard)) return standard;
-            foreach (var folder in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries))
-            {
-                var path = System.IO.Path.Combine(folder.Trim('"'), "pwsh.exe");
-                if (File.Exists(path)) return System.IO.Path.GetFullPath(path);
-            }
-            var windows = System.IO.Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
-            if (File.Exists(windows)) return windows;
-            throw new FileNotFoundException("Neither PowerShell 7 (pwsh.exe) nor Windows PowerShell (powershell.exe) was found.");
-        }
-    }
+    internal static string PowerShellPath => Sic.Core.Shell.PowerShellLocator.Find()
+        ?? throw new FileNotFoundException("Neither PowerShell 7 (pwsh.exe) nor Windows PowerShell (powershell.exe) was found.");
 
     internal static async Task<IReadOnlyList<DetectedAgent>> ProbeAsync(IEnumerable<AgentDefinition> agents)
     {

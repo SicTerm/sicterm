@@ -7,8 +7,7 @@ namespace Sic.Core.Tests;
 
 public sealed class AgentExitTests
 {
-    private static readonly string PowerShell = Environment.GetEnvironmentVariable("COMMAND_CENTRAL_PWSH")
-        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PowerShell", "7", "pwsh.exe");
+    private static string PowerShell => TestShells.PowerShell;
 
     [Theory]
     [InlineData("hermes", "\x05\x15", "/exit")]
