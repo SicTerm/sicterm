@@ -684,6 +684,7 @@ internal sealed partial class MainWindow
             _detectedAt = DateTimeOffset.UtcNow;
             RefreshAgentRows();
             SendWelcomeContext();
+            RefreshSetupAdvice();
         }
     }
 

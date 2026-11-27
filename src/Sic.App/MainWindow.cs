@@ -256,9 +256,12 @@ internal sealed partial class MainWindow : Window
                 // waits for the one under way below, so this runs alongside it rather than after it.
                 ResumeRestoredSessions();
                 // A first run: the film plays over the tab area while detection and the refresh run; its card waits for their facts.
+                WatchSetupNotice();
                 if (WelcomeDue) _ = ShowWelcomeAsync();
                 await Task.WhenAll(DetectToolsAsync(), RefreshHistoryAsync());
                 SendWelcomeContext();
+                // No PowerShell 7 or no agent: said once detection has answered, after the welcome (MainWindow.Setup.cs).
+                ShowSetupNoticeAtLaunch();
                 StartUpdateChecks();
                 FollowShellTone();
                 // Started by Open in SIC: the dialog, or the session, once detection has said which agents are here and the layout is back.
@@ -1222,13 +1225,14 @@ internal sealed partial class MainWindow : Window
 
     private void ShowError(string text) => Notify(InfoBarSeverity.Error, "That did not work", text);
 
-    private void ShowNotice(InfoBarSeverity severity, string title, string message, Microsoft.UI.Xaml.Controls.Primitives.ButtonBase? action, bool brief)
+    /// <summary><paramref name="content"/> goes under the message (the setup notice's links); every other notice takes it away.</summary>
+    private void ShowNotice(InfoBarSeverity severity, string title, string message, Microsoft.UI.Xaml.Controls.Primitives.ButtonBase? action, bool brief, UIElement? content = null)
     {
         var generation = ++_noticeGeneration;
         StopNoticeMotion();
         // A notice already up changes its text where it is; one on its way down comes back up from where it got to.
         var resting = _notice.IsOpen ? _noticeSlide.Y : (double?)null;
-        _notice.Severity = severity; _notice.Title = title; _notice.Message = message; _notice.ActionButton = action;
+        _notice.Severity = severity; _notice.Title = title; _notice.Message = message; _notice.ActionButton = action; _notice.Content = content;
         LastNotice = (severity, title, message, brief);
         _notice.IsOpen = true;
         _ = SlideNoticeAsync(generation, brief, resting);

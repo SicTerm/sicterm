@@ -80,6 +80,8 @@ internal sealed partial class MainWindow
         _welcomeHost.Visibility = Visibility.Collapsed;
         view.Close();
         if (_activePane is { } pane) pane.FocusInput(); else _root.Focus(FocusState.Programmatic);
+        // The setup notice waited for the welcome (MainWindow.Setup.cs).
+        if (_setupNoticeDue) ShowSetupNotice();
     }
 
     /// <summary>

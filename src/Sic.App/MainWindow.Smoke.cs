@@ -2586,6 +2586,67 @@ internal sealed partial class MainWindow
             var switchedOn = SavedSwitch("opencode") == true && _agentRows["opencode"].Identity.Opacity == 1;
             if (tabPages.Any(page => page.EndsWith(":False", StringComparison.Ordinal)) || !agentsPageHasEveryAgent || !aboutPageHasUpdates || !switchedOff || !switchedOn)
                 throw new InvalidOperationException($"The Settings tabs did not each show their page: {string.Join(", ", tabPages)} agents={agentsPageHasEveryAgent} about={aboutPageHasUpdates} switch off={switchedOff} on={switchedOn}.");
+            // The setup notice (MainWindow.Setup.cs; November 27, 2026), on gaps this run stands in for, since the smoke's PC has
+            // PowerShell 7 and the fixture agents: at launch the combined message with its five links, and the same in Settings →
+            // Agents; a gap that goes leaves both; the launch X closes its gaps at launch only, the Settings X in Settings only,
+            // each gap apart; with nothing missing the notice goes without closing anything; and the next notice drops the links.
+            var setupClosedBefore = (Launch: _preferences.SetupClosedAtLaunch, Settings: _preferences.SetupClosedInSettings);
+            _notice.IsOpen = false; LastNotice = null;
+            _preferences.SetupClosedAtLaunch = _preferences.SetupClosedInSettings = SetupGap.None;
+            bool setupNotice;
+            string setupImage = Path.Combine(data, "setup-notice-native.png");
+            try
+            {
+                string Said(SetupGap gaps) => SetupAdvisor.For(gaps)!.Message;
+                SetupGapsOverride = SetupGap.Both;
+                ShowSetupNotice();
+                var setupBoth = SetupNoticeShown && _notice.Message == Said(SetupGap.Both) && _notice.Title == ""
+                    && SetupLinkNames(_notice.Content).SequenceEqual(["PowerShell 7", "Claude Code", "Codex", "OpenCode", "Hermes"]);
+                ShowSettingsTab(SettingsTabs.Agents);
+                RefreshSetupAdvice();
+                var setupBarBoth = await EventuallyAsync(() => SetupBar is { IsOpen: true, ActualHeight: > 0 } bar && bar.Message == Said(SetupGap.Both) && SetupLinkNames(bar.Content).Count == 5);
+                var setupBar = SetupBar!;
+                await Task.Delay(150);
+                await CaptureAsync(_root, setupImage);
+                // An agent found: both places say PowerShell alone.
+                SetupGapsOverride = SetupGap.PowerShell;
+                RefreshSetupAdvice();
+                var setupFollowed = SetupNoticeShown && _notice.Message == Said(SetupGap.PowerShell) && SetupLinkNames(_notice.Content).SequenceEqual(["PowerShell 7"])
+                    && setupBar.Message == Said(SetupGap.PowerShell);
+                // The launch X: not at launch again, still in Settings.
+                CloseSetupNotice();
+                _notice.IsOpen = false;
+                ShowSetupNotice();
+                var setupClosedAtLaunch = !_notice.IsOpen && _preferences.SetupClosedAtLaunch == SetupGap.PowerShell && setupBar.IsOpen
+                    && SavedPreferences(() => new AppPreferences()).SetupClosedAtLaunch == SetupGap.PowerShell;
+                // The agent gap again: at launch alone, in Settings with PowerShell; then the Settings X closes both there.
+                SetupGapsOverride = SetupGap.Both;
+                ShowSetupNotice();
+                RefreshSetupAdvice();
+                var setupAgentAlone = SetupNoticeShown && _notice.Message == Said(SetupGap.Agent) && setupBar.IsOpen && setupBar.Message == Said(SetupGap.Both);
+                CloseSetupBar();
+                RefreshSetupAdvice();
+                var setupClosedInSettings = !setupBar.IsOpen && _preferences.SetupClosedInSettings == SetupGap.Both
+                    && SavedPreferences(() => new AppPreferences()).SetupClosedInSettings == SetupGap.Both;
+                // Nothing missing: the notice goes, and nothing more is closed at launch.
+                SetupGapsOverride = SetupGap.None;
+                RefreshSetupAdvice();
+                var setupGoneWithGap = !_notice.IsOpen && _preferences.SetupClosedAtLaunch == SetupGap.PowerShell;
+                NotifyBriefly("Smoke", "A plain notice.");
+                var setupLinksDropped = _notice.Content is null;
+                _notice.IsOpen = false; LastNotice = null;
+                setupNotice = setupBoth && setupBarBoth && setupFollowed && setupClosedAtLaunch && setupAgentAlone && setupClosedInSettings && setupGoneWithGap && setupLinksDropped;
+                if (!setupNotice) throw new InvalidOperationException($"The setup notice did not show, follow or close as laid out: both={setupBoth} bar={setupBarBoth} followed={setupFollowed} closedAtLaunch={setupClosedAtLaunch} agentAlone={setupAgentAlone} closedInSettings={setupClosedInSettings} gone={setupGoneWithGap} linksDropped={setupLinksDropped} message='{_notice.Message}' bar='{SetupBar?.Message}'.");
+            }
+            finally
+            {
+                SetupGapsOverride = null;
+                (_preferences.SetupClosedAtLaunch, _preferences.SetupClosedInSettings) = setupClosedBefore;
+                SavePreferences();
+                RefreshSetupAdvice();
+                ShowSettingsTab(SettingsTabs.Appearance);
+                await Task.Delay(150);
+            }
             // Settings → Session Indicator Width shows its width as it moves: while the slider has the keyboard, the pane that had
             // it wears the border even alone in its tab, and once the keyboard moves on to another setting, a lone pane wears none.
             var tabBeforeLone = _tabs.SelectedItem;
@@ -3762,7 +3823,7 @@ internal sealed partial class MainWindow
             _options.WriteReport(new
             {
                 success = true, terminalReady = true, inputEchoed = true, resized = true,
-                welcomeSkipped, welcomeOpened, welcomeCard, welcomeImage, tourStops, tourDropMark, tourLimits, tourEnded, tourImage,
+                welcomeSkipped, welcomeOpened, welcomeCard, welcomeImage, setupNotice, setupImage, tourStops, tourDropMark, tourLimits, tourEnded, tourImage,
                 workspaceShell, brandMark, historySearch, previewShown, renamedSearch, placeholderRestored, reopenedNamed, closeToTray, minimizeToTray, closeAndMinimize,
                 inlineRename, f2Rename, f2FromTerminal, tabColored, reopenedColored, tabStripLegible, activeTabJoinsPane, harnessNameDropped, panePathFits,
                 sessionsGrouped, sectionsRuled, pinMarkDrawn, sessionsByFolder, newSessionFoldersListed, workspaceFolders, suggestedWorkspaces, usageLimits, statusLineKept, statusLineMs, limitsImage, contextWindow, folderEmoji, folderColors, sounds, folderExplorer, folderRowsPresented, foldersRelisted, workspaceFromFolder, updatesSection, appIconShipped, themeKeptScroll, userThemes, motionSetting, terminalOptionsApplied, cursorDrawn, copyOnSelect, terminalPaletteFixed,
