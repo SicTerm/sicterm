@@ -220,6 +220,7 @@ const shortcutFor = (event: KeyboardEvent): string | null => {
       case 'E': return 'open-folder';
       case 'S': return 'toggle-panel';
       case 'A': return 'workspace-list';
+      case 'Z': return 'zoom';
       case 'C': return 'copy';
       case 'V': return 'paste';
       case 'K': return 'search';

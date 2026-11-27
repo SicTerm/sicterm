@@ -191,6 +191,8 @@ internal sealed partial class MainWindow
             .Select(pane => TabLabels.Key(pane.AgentId, pane.SessionId!)).Distinct(StringComparer.Ordinal).ToList();
         // A restore starts from nothing: the launch's, and the verification's, which empties the strip and restores what it saved.
         _workspaces.Clear();
+        // A layout with a zoomed tab comes back with the zoom on (MainWindow.Zoom.cs).
+        _zoomOn = saved.SelectMany(workspace => workspace.Tabs).Any(tab => tab.Zoomed is not null);
         try
         {
             _restoring = true; _switchingWorkspace = true;
@@ -216,7 +218,8 @@ internal sealed partial class MainWindow
         _workspace = _workspaces.First(workspace => workspace.Id == selectedId);
         var selected = StripHosts.FirstOrDefault(host => host.Saved.Id == _workspace.SelectedTabId)?.Item;
         _tabs.SelectedItem = selected ?? _tabs.TabItems.OfType<TabViewItem>().FirstOrDefault();
-        SetActivePane(SelectedPanes.FirstOrDefault());
+        // The tab's focused pane, its first unless one was restored zoomed (CreateTab), which keeps the zoom.
+        SetActivePane(SelectedHost is { Panes.Count: > 0 } shown ? FocusedPane(shown) : null);
         RefreshFolderMarks();
         RefreshFoldersPanel();
         RefreshWorkspacePanel();
