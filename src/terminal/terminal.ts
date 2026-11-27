@@ -195,8 +195,8 @@ const sides = new Map<string, keyof Neighbors>([['ArrowLeft', 'left'], ['ArrowRi
 // have no terminal meaning, so they are safe to take. Ctrl+C copies only when text is selected.
 // The function keys, as requested, even where a program has its own use for them: F1 shows the keyboard reference
 // (PSReadLine's ShowCommandHelp gives way), F2 renames the pane of a split tab or the tab of one pane (PSReadLine's
-// SwitchPredictionView and Codex's warnings give way), Ctrl+F2 renames the tab, F5 resumes all tabs, F6 consolidates them and F11
-// fills the display. With any other modifier they still reach the terminal.
+// SwitchPredictionView and Codex's warnings give way), Ctrl+F2 renames the tab, F5 resumes all tabs (Ctrl+F5 this workspace's
+// alone), F6 consolidates them and F11 fills the display. With any other modifier they still reach the terminal.
 const shortcutFor = (event: KeyboardEvent): string | null => {
   const { ctrlKey: ctrl, shiftKey: shift, altKey: alt, key, code } = event;
   const upper = key.length === 1 ? key.toUpperCase() : key;
@@ -208,6 +208,7 @@ const shortcutFor = (event: KeyboardEvent): string | null => {
     if (key === 'F11') return 'full-screen';
   }
   if (key === 'F2' && ctrl && !shift && !alt) return 'rename-tab';
+  if (key === 'F5' && ctrl && !shift && !alt) return 'resume-workspace';
   if (ctrl && !alt && key === 'Tab') return shift ? 'previous-tab' : 'next-tab';
   if (ctrl && shift && !alt) {
     switch (upper) {

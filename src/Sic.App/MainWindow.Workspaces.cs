@@ -1142,7 +1142,8 @@ internal sealed partial class MainWindow
 
     /// <summary>
     /// The workspace row's menu: New session here, Conversations in this workspace; its folder's emoji, color, sound and Explorer,
-    /// and its place in the list; Consolidate tabs (F6, the tabs of this workspace that share a folder) and Close all tabs; and
+    /// and its place in the list; Resume this workspace's tabs (Ctrl+F5), Consolidate tabs (F6, the tabs of this workspace that
+    /// share a folder) and Close all tabs; and
     /// Remove from Folders. Scratch has the session items alone. Built as it opens so the items read the state then.
     /// </summary>
     private MenuFlyout WorkspaceMenu(WorkspaceRowView view)
@@ -1168,6 +1169,11 @@ internal sealed partial class MainWindow
             }
             menu.Items.Add(new MenuFlyoutSeparator());
             var hosts = HostsOf(workspace).Where(host => !host.Closing).ToList();
+            var resume = new MenuFlyoutItem { Text = "Resume this workspace's tabs", KeyboardAcceleratorTextOverride = "Ctrl+F5", Icon = ResumeAllMark.Icon() };
+            ToolTipService.SetToolTip(resume, "Starts the sessions waiting in this workspace's tabs and leaves other workspaces' waiting.");
+            resume.IsEnabled = !ResumingAll && HasResumable(workspace);
+            resume.Click += async (_, _) => await ResumeWorkspaceFromUserAsync(workspace, new("Resume this workspace's tabs on the workspace's right-click menu", DateTimeOffset.UtcNow));
+            menu.Items.Add(resume);
             var consolidate = new MenuFlyoutItem { Text = "Consolidate tabs", KeyboardAcceleratorTextOverride = "F6", Icon = new FontIcon { Glyph = ConsolidateGlyph, FontFamily = Theme.Icons } };
             ToolTipService.SetToolTip(consolidate, "Every tab of this workspace that shares a folder with another joins the first of them, as panes.");
             consolidate.IsEnabled = TabConsolidation.Groups(hosts, host => host.Panes.Count > 0 ? host.Panes[0].Descriptor.WorkingDirectory : null).Count > 0;

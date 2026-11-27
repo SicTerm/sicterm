@@ -995,6 +995,8 @@ internal sealed partial class MainWindow : Window
         rename.Invoked += (_, args) => { args.Handled = true; RenameFocused(); };
         _root.KeyboardAccelerators.Add(rename);
         Add(VirtualKey.F5, VirtualKeyModifiers.None, "resume-all");
+        // Ctrl+F5: F5 for the current workspace alone (MainWindow.ResumeAll.cs).
+        Add(VirtualKey.F5, VirtualKeyModifiers.Control, "resume-workspace");
         Add(VirtualKey.F6, VirtualKeyModifiers.None, "consolidate");
         Add(VirtualKey.F11, VirtualKeyModifiers.None, "full-screen");
         for (var digit = 1; digit <= 9; digit++)

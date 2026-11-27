@@ -34,6 +34,7 @@ internal sealed partial class MainWindow
                 case "duplicate-tab": if (SelectedHost is { } duplicating) await DuplicateAsync(FocusedPane(duplicating)); break;
                 case "rename": RenamePaneOrTab(); break;
                 case "resume-all": await ResumeAllFromUserAsync(new("F5 or Ctrl+Shift+R", DateTimeOffset.UtcNow)); break;
+                case "resume-workspace": await ResumeWorkspaceFromUserAsync(_workspace, new("Ctrl+F5", DateTimeOffset.UtcNow)); break;
                 case "consolidate": ConsolidateTabsFromUser(); break;
                 case "help": await ShowKeyboardHelpAsync(); break;
                 case "toggle-panel": await SetPanelOpen(!_panelOpen); break;
