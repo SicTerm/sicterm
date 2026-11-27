@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using Sic.Core.Appearance;
 using Sic.Core.Shell;
 using Microsoft.UI.Xaml;
@@ -10,17 +11,17 @@ namespace Sic.App;
 /// Getting a PC set up (<see cref="SetupCatalog"/>; November 27, 2026), for one that has no PowerShell 7, no coding agent, or
 /// neither. A Store install on a fresh Windows 11 has neither, and all SicTerm said was a notice over five links.
 /// <para>
-/// The Get set up panel is the home screen's centre while something is missing, until its X closes it there: one sentence on
-/// what a coding agent is, then a row each for PowerShell 7 and the four agents, with what it is, whether it was found, the
-/// command that installs it, and "What is this?" for a reader new to all of it. Settings → Agents keeps the rows of whatever
-/// is still missing, so another agent can be added later. Nobody is asked whether they are new to this: a row reads in one
-/// line for someone who knows what they want, and opens for someone who does not.
+/// The Get set up panel is the home screen's centre while something is missing, until its X closes it there: PowerShell 7
+/// under one label and the four agents under another, each row with its name, whether it was found, one line on what it is
+/// and Install. Settings → Agents has the same Install on each agent card that was not found, and PowerShell has a card of its
+/// own in a Shell section there.
 /// </para>
 /// <para>
-/// Install opens a PowerShell tab and types the vendor's own command at its prompt, without running it: the person presses
-/// Enter and answers the installer themselves. SicTerm then watches for the program, and once the tab's output has stopped the
-/// window's notice says it is installed and offers Start a session. Claude Code's installer leaves its folder off Path, so its
-/// notice and its row also offer Add to PATH (<see cref="UserPath"/>); SicTerm finds it there either way (EnvironmentRefresh).
+/// Install opens a popup with the longer text and the vendor's own command; its Install closes the popup and opens a PowerShell
+/// tab with the command typed at its prompt, not run: the person presses Enter and answers the installer themselves. SicTerm
+/// then watches for the program, and once the tab's output has stopped the notice says it is installed, with Close tab and,
+/// for an agent, Start a session. Claude Code's installer leaves its folder off Path, so its notice and its row also offer Add
+/// to PATH (<see cref="UserPath"/>); SicTerm finds it there either way (EnvironmentRefresh).
 /// </para>
 /// <para>
 /// The launch notice is one sentence with a Set up button, shown at each launch until its X is clicked, and not while the
@@ -117,7 +118,8 @@ internal sealed partial class MainWindow
 
     /// <summary>
     /// Set up, from the launch notice or New session: the panel on the home screen when that is what the window shows, back
-    /// from its X for this run; otherwise Settings → Agents with its rows open. The notice goes without its X being counted.
+    /// from its X for this run; otherwise Settings → Agents, where each item missing has its Install. The notice goes without
+    /// its X being counted.
     /// </summary>
     internal void OpenSetup()
     {
@@ -130,29 +132,18 @@ internal sealed partial class MainWindow
         }
         OpenPanel("settings");
         ShowSettingsTab(SettingsTabs.Agents);
-        if (_setupSection is { } section)
-        {
-            section.IsExpanded = true;
-            section.StartBringIntoView();
-        }
     }
 
-    // ---- The panel and its rows ----
+    // ---- The home panel ----
 
-    /// <summary>One item's row, in the home panel or in Settings → Agents.</summary>
+    /// <summary>One item's row in the home panel: its name, whether it was found, one line, and its buttons.</summary>
     private sealed class SetupRow
     {
         internal required SetupItem Item { get; init; }
-        internal required bool InSettings { get; init; }
         internal required FrameworkElement Root { get; init; }
         internal required TextBlock Status { get; init; }
         internal required TextBlock Line { get; init; }
-        internal required FrameworkElement CommandBox { get; init; }
-        internal required TextBlock Command { get; init; }
-        internal required TextBlock Detail { get; init; }
         internal required Button Install { get; init; }
-        internal required Button Copy { get; init; }
-        internal required Button Page { get; init; }
         internal required Button Start { get; init; }
         internal required Button AddPath { get; init; }
         internal Border? Divider { get; set; }
@@ -164,7 +155,6 @@ internal sealed partial class MainWindow
     private FrameworkElement? _homeMark, _homeTagline;
     private StackPanel? _homeStack;
     private Border? _setupPanel;
-    private Expander? _setupSection;
     /// <summary>Set up was asked for in this run, so the home panel shows whatever its X closed before.</summary>
     private bool _setupReopened;
     /// <summary>
@@ -172,27 +162,23 @@ internal sealed partial class MainWindow
     /// tiles shown that early have ended SicTerm before (OpenPanel's note on Settings restored at launch).
     /// </summary>
     private bool _setupReady;
-    /// <summary>Settings → Agents has opened its rows by itself once in this run, for a gap; after that the section is left as it is.</summary>
-    private bool _setupSectionOpened;
 
     /// <summary>Whether the home screen is what the window shows and the panel is on it; the launch notice stays away then.</summary>
     internal bool SetupHomeShown => _open.Count == 0 && _setupPanel is { Visibility: Visibility.Visible };
 
-    /// <summary>The rows, for verification: each item's status, command and the buttons on show, in the home panel or in Settings.</summary>
-    internal IReadOnlyList<(string Id, bool Visible, string Status, string Line, string? Command, IReadOnlyList<string> Buttons)> SetupRowFacts(bool inSettings) =>
-        _setupRows.Where(row => row.InSettings == inSettings).Select(row => (row.Item.Id, row.Root.Visibility == Visibility.Visible, row.Status.Text, row.Line.Text,
-            row.CommandBox.Visibility == Visibility.Visible ? row.Command.Text : null,
-            (IReadOnlyList<string>)new[] { (row.Install, row.Install.Content as string ?? "Install"), (row.Copy, "Copy"), (row.Page, "Install page"), (row.Start, "Start a session"), (row.AddPath, "Add to PATH") }
-                .Where(button => button.Item1.Visibility == Visibility.Visible).Select(button => button.Item2).ToList())).ToList();
+    /// <summary>The home panel's rows, for verification: each item's status, line and the buttons on show.</summary>
+    internal IReadOnlyList<(string Id, bool Visible, string Status, string Line, IReadOnlyList<string> Buttons)> SetupRowFacts() =>
+        _setupRows.Select(row => (row.Item.Id, row.Root.Visibility == Visibility.Visible, row.Status.Text, row.Line.Text,
+            (IReadOnlyList<string>)new[] { row.Start, row.AddPath, row.Install }.Where(button => button.Visibility == Visibility.Visible)
+                .Select(button => button.Content as string ?? "").ToList())).ToList();
 
-    internal Expander? SetupSection => _setupSection;
-
-    /// <summary>Whether <paramref name="item"/> is on this PC: PowerShell 7 by the shell SicTerm would start, an agent by the last detection.</summary>
+    /// <summary>Whether <paramref name="item"/> is on this PC: PowerShell 7 by the shell SicTerm would start, Node.js by npm on Path, an agent by the last detection.</summary>
     private bool SetupFound(SetupItem item) => SetupFound(item, SetupGaps);
 
     private bool SetupFound(SetupItem item, SetupGap gaps)
     {
         if (item.Id == SetupCatalog.PowerShell) return !gaps.HasFlag(SetupGap.PowerShell);
+        if (item.Id == SetupCatalog.Node.Id) return SetupNpm;
         // The smoke's stand-in for a PC without agents: none of them counts.
         if (SetupGapsOverride is { } forced && forced.HasFlag(SetupGap.Agent)) return false;
         return _detection.GetValueOrDefault(item.Id)?.Available == true;
@@ -212,136 +198,65 @@ internal sealed partial class MainWindow
         catch (Exception exception) when (exception is System.Security.SecurityException or UnauthorizedAccessException or IOException) { return false; }
     }
 
-    /// <summary>The command Install would type for <paramref name="item"/> on this PC, null where the row offers the install page.</summary>
+    /// <summary>The command Install would type for <paramref name="item"/> on this PC, null where the popup offers the install page.</summary>
     private static string? SetupCommand(SetupItem item) => SetupCatalog.Command(item.Id, SetupWinget, SetupNpm);
 
     private static bool SetupWinget => PathList.Find("winget.exe") is not null;
     private static bool SetupNpm => PathList.Find("npm.cmd") is not null;
 
     /// <summary>
-    /// A row. On the home screen it is laid across: the tile, the text and the command, then the buttons at the right. The
-    /// Settings panel is some 300 pixels wide, where that crushed the text into a column a few words across and cut the status
-    /// off (the smoke's capture, November 27, 2026), so there everything is stacked, the buttons under the command.
+    /// A row: the tile, the name with whether it was found, one line under it, and at the right Install (which opens the
+    /// popup), or Start a session once an agent is found, with Add to PATH beside it for Claude Code off Path. The command, its
+    /// Copy and the longer text are in the popup, so the panel stays short (Chris, November 27, 2026).
     /// </summary>
-    private SetupRow BuildSetupRow(SetupItem item, bool inSettings)
+    private SetupRow BuildSetupRow(SetupItem item)
     {
-        var tile = _theme.AgentTile(item.Id == SetupCatalog.PowerShell ? "shell" : item.Id, inSettings ? 24 : 28);
-        var name = _theme.BodyText(item.Name, inSettings ? 13 : 14, 600);
+        var grid = new Grid { ColumnSpacing = 12, Padding = new Thickness(0, 9, 0, 9) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var tile = _theme.AgentTile(item.Id == SetupCatalog.PowerShell ? "shell" : item.Id, 28);
+        tile.VerticalAlignment = VerticalAlignment.Center;
+        grid.Children.Add(tile);
+        var text = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        var head = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        head.Children.Add(_theme.BodyText(item.Name, 14, 600));
         var status = _theme.BodyText("", 12); status.VerticalAlignment = VerticalAlignment.Center;
+        head.Children.Add(status);
+        text.Children.Add(head);
         var line = _theme.Caption(item.Line); line.TextWrapping = TextWrapping.Wrap; line.TextTrimming = TextTrimming.None;
-        // The command as it will be typed, to read and to select: someone who knows what they want needs nothing else.
-        var command = _theme.MonoText(""); command.TextWrapping = TextWrapping.Wrap; command.TextTrimming = TextTrimming.None; command.IsTextSelectionEnabled = true;
-        command.Foreground = _theme.Text;
-        var commandBox = new Border
-        {
-            Child = command, Background = _theme.Base, BorderBrush = _theme.Stroke, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(8, 5, 8, 6), Margin = new Thickness(0, 2, 0, 0), HorizontalAlignment = inSettings ? HorizontalAlignment.Stretch : HorizontalAlignment.Left
-        };
-        var links = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14 };
-        var what = SetupLink("What is this?");
-        var page = SetupLink("Install page");
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(what, "What is " + item.Name + "?");
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(page, item.Name + " install page");
-        page.Click += (_, _) => OpenSetupPage(item);
-        links.Children.Add(what); links.Children.Add(page);
-        var detail = _theme.BodyText(item.Detail, 12); detail.TextWrapping = TextWrapping.Wrap; detail.Foreground = _theme.TextSecondary;
-        detail.Visibility = Visibility.Collapsed; detail.Margin = new Thickness(0, 0, 0, 2);
-        what.Click += (_, _) => detail.Visibility = detail.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
-
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Top };
-        var addPath = Theme.TextButton("Add to PATH", "Adds " + ClaudeFolder + " to this account's PATH");
-        addPath.Click += (_, _) => AddClaudeToPath();
+        text.Children.Add(line);
+        Grid.SetColumn(text, 1); grid.Children.Add(text);
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
         var start = Theme.TextButton("Start a session");
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(start, "Start a " + item.Name + " session");
         start.Click += async (_, _) => await StartSetupSessionAsync(item.Id);
+        var addPath = Theme.TextButton("Add to PATH", "Adds " + ClaudeFolder + " to this account's PATH");
+        addPath.Click += (_, _) => AddClaudeToPath();
         var install = _theme.PrimaryButton("Install");
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(install, "Install " + item.Name);
-        install.Click += async (_, _) => await InstallAsync(item);
-        var copy = _theme.IconButton(((char)0xE8C8).ToString(), "Copy the command", 32, 14);
-        copy.Click += (_, _) =>
-        {
-            if (SetupCommand(item) is not { } current) return;
-            try { ClipboardWrite.SetText(current); UpdateStatus(item.Name + " install command copied"); }
-            catch (Exception exception) when (exception is not OutOfMemoryException) { ShowError("The command was not copied: " + exception.Message); }
-        };
-        // The same order in both places: what was found first, then what installs it.
-        actions.Children.Add(start); actions.Children.Add(addPath); actions.Children.Add(install); actions.Children.Add(copy);
-
-        FrameworkElement root;
-        if (inSettings)
-        {
-            var stack = new StackPanel { Spacing = 6, Padding = new Thickness(0, 10, 0, 10) };
-            var top = new Grid { ColumnSpacing = 10 };
-            top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            tile.VerticalAlignment = VerticalAlignment.Center;
-            top.Children.Add(tile);
-            name.VerticalAlignment = VerticalAlignment.Center;
-            Grid.SetColumn(name, 1); top.Children.Add(name);
-            Grid.SetColumn(status, 2); top.Children.Add(status);
-            stack.Children.Add(top); stack.Children.Add(line); stack.Children.Add(commandBox); stack.Children.Add(actions); stack.Children.Add(links); stack.Children.Add(detail);
-            root = stack;
-        }
-        else
-        {
-            var grid = new Grid { ColumnSpacing = 12, Padding = new Thickness(0, 9, 0, 9) };
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            tile.VerticalAlignment = VerticalAlignment.Top; tile.Margin = new Thickness(0, 2, 0, 0);
-            grid.Children.Add(tile);
-            var text = new StackPanel { Spacing = 3 };
-            var head = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-            // The two links sit on the name's line: on a line of their own, five rows were taller than the window (a preview, November 27, 2026).
-            links.VerticalAlignment = VerticalAlignment.Center; links.Margin = new Thickness(6, 1, 0, 0);
-            head.Children.Add(name); head.Children.Add(status); head.Children.Add(links);
-            text.Children.Add(head); text.Children.Add(line); text.Children.Add(commandBox); text.Children.Add(detail);
-            Grid.SetColumn(text, 1); grid.Children.Add(text);
-            Grid.SetColumn(actions, 2); grid.Children.Add(actions);
-            root = grid;
-        }
-
-        return new SetupRow
-        {
-            Item = item, InSettings = inSettings, Root = root, Status = status, Line = line, CommandBox = commandBox, Command = command, Detail = detail,
-            Install = install, Copy = copy, Page = page, Start = start, AddPath = addPath
-        };
+        install.Click += async (_, _) => await ShowInstallAsync(item);
+        actions.Children.Add(start); actions.Children.Add(addPath); actions.Children.Add(install);
+        Grid.SetColumn(actions, 2); grid.Children.Add(actions);
+        return new SetupRow { Item = item, Root = grid, Status = status, Line = line, Install = install, Start = start, AddPath = addPath };
     }
 
-    /// <summary>A text link in a row: the accent, no button face.</summary>
-    private Button SetupLink(string text)
-    {
-        var label = new TextBlock { Text = text, FontFamily = Theme.Body, FontSize = 12, Foreground = _theme.Accent };
-        return new Button
-        {
-            Content = label, Padding = new Thickness(0), MinHeight = 0, MinWidth = 0, Background = _theme.Transparent, BorderThickness = new Thickness(0),
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-    }
+    /// <summary>A group's label in the home panel.</summary>
+    private readonly List<(bool Agents, FrameworkElement Header)> _setupHeaders = [];
 
-    /// <summary>A group's label and sentence in one place, shown while any of its rows is.</summary>
-    private readonly List<(bool InSettings, bool Agents, FrameworkElement Header)> _setupHeaders = [];
-
-    /// <summary>
-    /// The rows of <paramref name="inSettings"/>'s place in two groups, PowerShell 7 and then the agents, each under its label
-    /// and sentence (<see cref="SetupCatalog.ShellLabel"/>), with a hairline between each two rows of a group that show.
-    /// </summary>
-    private StackPanel BuildSetupRows(bool inSettings)
+    /// <summary>The rows in two groups, PowerShell 7 and then the agents, each under its label, a hairline between each two rows of a group.</summary>
+    private StackPanel BuildSetupRows()
     {
         var rows = new StackPanel();
         foreach (var agents in new[] { false, true })
         {
-            var header = new StackPanel { Spacing = 3, Margin = new Thickness(0, agents ? 14 : 2, 0, 2) };
-            header.Children.Add(_theme.Eyebrow(agents ? SetupCatalog.AgentsLabel : SetupCatalog.ShellLabel));
-            var sentence = _theme.Caption(agents ? SetupCatalog.AgentsIntro : SetupCatalog.ShellIntro);
-            sentence.TextWrapping = TextWrapping.Wrap; sentence.TextTrimming = TextTrimming.None;
-            header.Children.Add(sentence);
+            var header = _theme.Eyebrow(agents ? SetupCatalog.AgentsLabel : SetupCatalog.ShellLabel);
+            header.Margin = new Thickness(0, agents ? 16 : 4, 0, 0);
             rows.Children.Add(header);
-            _setupHeaders.Add((inSettings, agents, header));
+            _setupHeaders.Add((agents, header));
             foreach (var item in SetupCatalog.Items.Where(item => (item.Id != SetupCatalog.PowerShell) == agents))
             {
-                var row = BuildSetupRow(item, inSettings);
+                var row = BuildSetupRow(item);
                 row.Divider = _theme.Divider();
                 rows.Children.Add(row.Divider);
                 rows.Children.Add(row.Root);
@@ -366,13 +281,11 @@ internal sealed partial class MainWindow
         close.Click += (_, _) => CloseSetupPanel();
         Grid.SetColumn(close, 1); top.Children.Add(close);
         content.Children.Add(top);
-        content.Children.Add(BuildSetupRows(inSettings: false));
+        content.Children.Add(BuildSetupRows());
         content.Children.Add(_theme.Divider());
         var footnote = _theme.Tertiary(SetupCatalog.Footnote); footnote.TextWrapping = TextWrapping.Wrap; footnote.TextTrimming = TextTrimming.None;
         footnote.Margin = new Thickness(0, 8, 0, 0);
         content.Children.Add(footnote);
-        // A PC with neither is likely a new one, or its owner new to this: the first row starts open.
-        if (SetupGaps == SetupGap.Both && _setupRows.FirstOrDefault(row => !row.InSettings) is { } first) first.Detail.Visibility = Visibility.Visible;
         return new Border
         {
             Child = content, Background = _theme.Layer, BorderBrush = _theme.Stroke, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8),
@@ -389,35 +302,15 @@ internal sealed partial class MainWindow
         RefreshSetupRows();
     }
 
-    /// <summary>Settings → Agents: the rows of what is still missing, in a section that opens itself while the PC has a gap.</summary>
-    private Expander BuildSetupSection()
-    {
-        var content = new StackPanel();
-        content.Children.Add(BuildSetupRows(inSettings: true));
-        var footnote = _theme.Tertiary(SetupCatalog.Footnote); footnote.TextWrapping = TextWrapping.Wrap; footnote.TextTrimming = TextTrimming.None;
-        footnote.Margin = new Thickness(0, 6, 0, 0);
-        content.Children.Add(footnote);
-        _setupSection = new Expander
-        {
-            Header = SetupCatalog.Heading, Content = content, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch,
-            IsExpanded = SetupGaps != SetupGap.None, Visibility = Visibility.Collapsed
-        };
-        RefreshSetupRows();
-        return _setupSection;
-    }
-
-    /// <summary>Both places in step with the PC, after each detection: the notice, the panel and every row.</summary>
+    /// <summary>Everything in step with the PC, after each detection: the notice, the panel, the agent cards' Install and the PowerShell card.</summary>
     internal void RefreshSetupAdvice()
     {
         RefreshSetupRows();
+        RefreshAgentRows();
         if (SetupNoticeShown && (SetupHomeShown || SetupAdvisor.Open(SetupGaps, _preferences.SetupClosedAtLaunch) != _setupNoticeGaps)) ShowSetupNotice();
     }
 
-    /// <summary>
-    /// Shows or hides the home panel and brings every row up to date: found or not, the command this PC can run, and the
-    /// buttons that go with them. The home panel lists everything; Settings lists what is missing, and Claude Code while its
-    /// folder is off Path.
-    /// </summary>
+    /// <summary>Shows or hides the home panel and brings its rows and the PowerShell card up to date.</summary>
     internal void RefreshSetupRows()
     {
         var gaps = SetupGaps;
@@ -426,50 +319,32 @@ internal sealed partial class MainWindow
         if (_setupPanel is { } panel)
         {
             panel.Visibility = home ? Visibility.Visible : Visibility.Collapsed;
-            // The mark and the tagline give their room to the panel, and the column widens for the commands.
+            // The mark and the tagline give their room to the panel, and the column widens for it.
             if (_homeMark is not null) _homeMark.Visibility = home ? Visibility.Collapsed : Visibility.Visible;
             if (_homeTagline is not null) _homeTagline.Visibility = home ? Visibility.Collapsed : Visibility.Visible;
-            if (_homeStack is not null) _homeStack.MaxWidth = home ? 720 : 480;
+            if (_homeStack is not null) _homeStack.MaxWidth = home ? 640 : 480;
         }
         var checking = _detection.Count == 0 && !_detectionFailed && SetupGapsOverride is null;
         var offPath = ClaudeOffPath();
-        var (winget, npm) = (SetupWinget, SetupNpm);
-        foreach (var place in _setupRows.GroupBy(row => (row.InSettings, Agents: row.Item.Id != SetupCatalog.PowerShell)))
+        foreach (var group in _setupRows.GroupBy(row => row.Item.Id != SetupCatalog.PowerShell))
         {
-            // No hairline above a group's first row: its label is there.
             var first = true;
-            foreach (var row in place)
+            foreach (var row in group)
             {
                 var agent = row.Item.Id != SetupCatalog.PowerShell;
                 var found = SetupFound(row.Item, gaps);
                 var needsPath = found && row.Item.Id == "claude" && offPath;
-                var command = found ? null : SetupCatalog.Command(row.Item.Id, winget, npm);
                 (row.Status.Text, row.Status.Foreground) = found ? ("Detected", _theme.Success) : agent && checking ? ("Checking…", _theme.TextTertiary) : ("Not found", _theme.TextTertiary);
                 row.Line.Text = needsPath ? SetupCatalog.ClaudeOffPath : row.Item.Line;
-                row.Command.Text = command ?? "";
-                row.CommandBox.Visibility = command is null ? Visibility.Collapsed : Visibility.Visible;
-                // Where this PC cannot run a command (no winget, no npm), the button opens the vendor's page instead, and the link beside
-                // "What is this?" would only repeat it.
-                row.Install.Content = command is null ? "Install page" : "Install";
                 row.Install.Visibility = found ? Visibility.Collapsed : Visibility.Visible;
-                row.Copy.Visibility = command is null ? Visibility.Collapsed : Visibility.Visible;
-                row.Page.Visibility = command is null ? Visibility.Collapsed : Visibility.Visible;
                 row.Start.Visibility = found && agent ? Visibility.Visible : Visibility.Collapsed;
                 row.AddPath.Visibility = needsPath ? Visibility.Visible : Visibility.Collapsed;
-                var shown = !row.InSettings || !found || needsPath;
-                row.Root.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
-                if (row.Divider is { } divider) divider.Visibility = shown && !first ? Visibility.Visible : Visibility.Collapsed;
-                if (shown) first = false;
+                // No hairline above a group's first row: its label is there.
+                if (row.Divider is { } divider) divider.Visibility = first ? Visibility.Collapsed : Visibility.Visible;
+                first = false;
             }
-            foreach (var header in _setupHeaders.Where(header => header.InSettings == place.Key.InSettings && header.Agents == place.Key.Agents))
-                header.Header.Visibility = place.Any(row => row.Root.Visibility == Visibility.Visible) ? Visibility.Visible : Visibility.Collapsed;
         }
-        if (_setupSection is { } section)
-        {
-            section.Visibility = _setupRows.Any(row => row.InSettings && row.Root.Visibility == Visibility.Visible) ? Visibility.Visible : Visibility.Collapsed;
-            // Detection answers after the section is built, so a PC without an agent opens it here, once.
-            if (gaps != SetupGap.None && !_setupSectionOpened) { _setupSectionOpened = true; section.IsExpanded = true; }
-        }
+        RefreshShellCard();
     }
 
     private void OpenSetupPage(SetupItem item)
@@ -479,6 +354,74 @@ internal sealed partial class MainWindow
         {
             Diagnostics.Log("setup page " + item.Page + ": " + exception.Message);
             ShowError("The page did not open: " + item.Page.AbsoluteUri);
+        }
+    }
+
+    // ---- The install popup ----
+
+    /// <summary>The install popup while it is up, and the item it is for; for verification.</summary>
+    internal (ContentDialog Dialog, string Id, string? Command, string Primary)? InstallPopup { get; private set; }
+
+    /// <summary>
+    /// Install, from the home panel or an agent's card in Settings: a popup with the line under the name, the longer text, the
+    /// command with Copy, and Install, which closes the popup and then opens the tab (Chris, November 27, 2026). Where this PC
+    /// cannot run the command (no winget for PowerShell 7) the popup's button opens the vendor's page instead. OpenCode without
+    /// npm leads with Node.js, which installs for all users, so Windows asks for admin rights as its installer starts, in the
+    /// tab, where SicTerm can still watch it; nothing SicTerm runs is elevated.
+    /// </summary>
+    internal async Task ShowInstallAsync(SetupItem item)
+    {
+        if (_dialogsOpen > 0) return;
+        var needsNode = item.Id == "opencode" && !SetupNpm;
+        var step = needsNode ? SetupCatalog.Node : item;
+        var command = SetupCommand(step);
+        var content = new StackPanel { Spacing = 10, MinWidth = 460, MaxWidth = 560 };
+        var line = _theme.BodyText(item.Line, 13, 600); line.TextWrapping = TextWrapping.Wrap;
+        content.Children.Add(line);
+        var detail = _theme.BodyText(item.Detail, 13); detail.TextWrapping = TextWrapping.Wrap; detail.Foreground = _theme.TextSecondary;
+        content.Children.Add(detail);
+        if (needsNode)
+        {
+            var node = _theme.BodyText(SetupCatalog.OpenCodeNeedsNode, 13); node.TextWrapping = TextWrapping.Wrap;
+            content.Children.Add(node);
+        }
+        if (command is not null)
+        {
+            content.Children.Add(_theme.Eyebrow(needsNode ? "Node.js command" : "Command"));
+            var row = new Grid { ColumnSpacing = 6 };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var text = _theme.MonoText(command); text.TextWrapping = TextWrapping.Wrap; text.TextTrimming = TextTrimming.None; text.IsTextSelectionEnabled = true; text.Foreground = _theme.Text;
+            row.Children.Add(new Border
+            {
+                Child = text, Background = _theme.Base, BorderBrush = _theme.Stroke, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(8, 6, 8, 7)
+            });
+            var copy = _theme.IconButton(((char)0xE8C8).ToString(), "Copy the command", 32, 14);
+            copy.VerticalAlignment = VerticalAlignment.Top;
+            copy.Click += (_, _) =>
+            {
+                try { ClipboardWrite.SetText(command); UpdateStatus(step.Name + " install command copied"); }
+                catch (Exception exception) when (exception is not OutOfMemoryException) { ShowError("The command was not copied: " + exception.Message); }
+            };
+            Grid.SetColumn(copy, 1); row.Children.Add(copy);
+            content.Children.Add(row);
+            var footnote = _theme.Tertiary(needsNode ? SetupCatalog.NodeFootnote : SetupCatalog.PopupFootnote); footnote.TextWrapping = TextWrapping.Wrap; footnote.TextTrimming = TextTrimming.None;
+            content.Children.Add(footnote);
+        }
+        var primary = command is null ? (needsNode ? "Node.js install page" : "Install page") : needsNode ? "Install Node.js" : "Install";
+        var dialog = Dialog("Install " + item.Name, content, primary);
+        // The vendor's page beside the command, for whoever would rather read it first; with no command the page is the main button.
+        if (command is not null) dialog.SecondaryButtonText = needsNode ? "OpenCode's page" : "Install page";
+        InstallPopup = (dialog, item.Id, command, primary);
+        ContentDialogResult result;
+        try { result = await dialog.ShowAsync(); }
+        finally { InstallPopup = null; }
+        if (result == ContentDialogResult.Secondary) OpenSetupPage(item);
+        else if (result == ContentDialogResult.Primary)
+        {
+            if (command is null) OpenSetupPage(step);
+            else await InstallAsync(step, command);
         }
     }
 
@@ -504,13 +447,12 @@ internal sealed partial class MainWindow
     internal IReadOnlyList<string> SetupInstalls => _installs.Select(install => install.Item.Id).ToList();
 
     /// <summary>
-    /// Install: a PowerShell tab named for the item, in the profile folder, with the command typed at its prompt once the
-    /// prompt is there, and not run. Text sent while the pane was still starting was lost in a Windows Sandbox run, so the
+    /// The popup's Install: a PowerShell tab named for the item, in the profile folder, with the command typed at its prompt once
+    /// the prompt is there, and not run. Text sent while the pane was still starting was lost in a Windows Sandbox run, so the
     /// typing waits for the prompt (<see cref="ShellPrompt"/>), or for the screen to stop changing under a profile's own prompt.
     /// </summary>
-    internal async Task InstallAsync(SetupItem item)
+    internal async Task InstallAsync(SetupItem item, string command)
     {
-        if (SetupCommand(item) is not { } command) { OpenSetupPage(item); return; }
         try
         {
             var folder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -565,9 +507,9 @@ internal sealed partial class MainWindow
     /// <summary>
     /// Every two seconds while an install is watched. Not yet found: the program in its known place (Claude Code and Codex), or
     /// PowerShell 7 anywhere, is looked for at once, and detection looks again when it appears, and every sixteen seconds for
-    /// the installers with no known place (Hermes, npm), which are also found when they change Path. Found: the notice waits for
-    /// the tab's screen to stop changing, since claude.exe is in place a moment before its installer has finished talking.
-    /// The watch ends when the item is found and said, or its tab has gone.
+    /// the installers with no known place (Hermes, npm), which are also found when they change Path; Node.js is found by npm on
+    /// Path, read again from the registry. Found: the notice waits for the tab's screen to stop changing, since claude.exe is in
+    /// place a moment before its installer has finished talking. The watch ends when the item is found and said, or its tab has gone.
     /// </summary>
     private async Task InstallTickAsync()
     {
@@ -576,6 +518,8 @@ internal sealed partial class MainWindow
         try
         {
             var detect = false;
+            // Node.js's installer changes the PC's Path; SicTerm's own follows it here as well as on Windows' word.
+            if (_installs.Any(install => install.Item.Id == SetupCatalog.Node.Id)) EnvironmentRefresh.Apply();
             foreach (var install in _installs.ToList())
             {
                 var open = AllPanes.Contains(install.Pane);
@@ -588,7 +532,7 @@ internal sealed partial class MainWindow
                         install.ProgramSeen = true;
                         if (install.Item.Id == SetupCatalog.PowerShell) RefreshSetupAdvice(); else detect = true;
                     }
-                    else if (install.Item.Id != SetupCatalog.PowerShell && install.Ticks % 8 == 0 && DateTimeOffset.UtcNow - install.Started < InstallWatch) detect = true;
+                    else if (install.Item.Id is not (SetupCatalog.PowerShell or "node") && install.Ticks % 8 == 0 && DateTimeOffset.UtcNow - install.Started < InstallWatch) detect = true;
                     continue;
                 }
                 if (open && install.Settling < 30 && install.Pane.Terminal is { } terminal && install.Pane.IsRunning)
@@ -600,7 +544,7 @@ internal sealed partial class MainWindow
                     if (screen is not null && screen != install.Screen) { install.Screen = screen; continue; }
                 }
                 _installs.Remove(install);
-                ShowInstalled(install.Item);
+                ShowInstalled(install.Item, open ? install.Pane : null);
             }
             if (detect && !_detecting) await DetectToolsAsync();
         }
@@ -620,31 +564,60 @@ internal sealed partial class MainWindow
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)) is { } program && File.Exists(program);
     }
 
-    /// <summary>The notice once an install is found: what is installed, Start a session for an agent, and Add to PATH for Claude Code off Path.</summary>
-    internal void ShowInstalled(SetupItem item)
+    /// <summary>
+    /// The notice once an install is found, with Close tab for the install's tab while it is open (nothing closes it by itself:
+    /// PowerShell 7 is found before winget has finished, and a failure is only explained there). An agent adds Start a session,
+    /// which closes the tab too, and says where the other agents are; Claude Code off Path adds Add to PATH; Node.js leads on to
+    /// OpenCode's popup.
+    /// </summary>
+    internal void ShowInstalled(SetupItem item, SessionPane? pane)
     {
         if (_closing) return;
-        RefreshSetupRows();
-        var agent = item.Id != SetupCatalog.PowerShell;
+        RefreshSetupAdvice();
         var offPath = item.Id == "claude" && ClaudeOffPath();
-        var message = !agent ? "PowerShell 7 is installed. New tabs run in it." : offPath ? SetupCatalog.ClaudeOffPathNotice : item.Name + " is installed.";
+        var message = item.Id == SetupCatalog.PowerShell ? SetupCatalog.PowerShellInstalled
+            : item.Id == SetupCatalog.Node.Id ? SetupCatalog.NodeInstalled
+            : offPath ? SetupCatalog.ClaudeOffPathNotice : SetupCatalog.AgentInstalled(item.Name);
         Diagnostics.Log("setup: " + item.Id + " installed" + (offPath ? ", its folder off Path" : ""));
-        ShowNotice(InfoBarSeverity.Success, "", message, null, brief: false, content: agent ? InstalledActions(item.Id, offPath) : null);
+        var actions = InstalledActions(item, offPath, pane);
+        ShowNotice(InfoBarSeverity.Success, "", message, null, brief: false, content: actions.Children.Count == 0 ? null : actions);
     }
 
-    private StackPanel InstalledActions(string id, bool offPath)
+    private StackPanel InstalledActions(SetupItem item, bool offPath, SessionPane? pane)
     {
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 0, 0, 12) };
         if (offPath)
         {
             var add = Theme.TextButton("Add to PATH", "Adds " + ClaudeFolder + " to this account's PATH");
-            add.Click += (_, _) => AddClaudeToPath();
+            add.Click += (_, _) => AddClaudeToPath(pane);
             actions.Children.Add(add);
         }
-        var start = Theme.TextButton("Start a session");
-        start.Click += async (_, _) => await StartSetupSessionAsync(id);
-        actions.Children.Add(start);
+        if (item.Id == SetupCatalog.Node.Id && SetupCatalog.Item("opencode") is { } openCode)
+        {
+            var next = Theme.TextButton("Install OpenCode");
+            next.Click += async (_, _) => { await CloseInstallTabAsync(pane); await ShowInstallAsync(openCode); };
+            actions.Children.Add(next);
+        }
+        else if (item.Id is not (SetupCatalog.PowerShell or "node"))
+        {
+            var start = Theme.TextButton("Start a session");
+            start.Click += async (_, _) => await StartSetupSessionAsync(item.Id, pane);
+            actions.Children.Add(start);
+        }
+        if (pane is not null)
+        {
+            var close = Theme.TextButton("Close tab");
+            close.Click += async (_, _) => await CloseInstallTabAsync(pane);
+            actions.Children.Add(close);
+        }
         return actions;
+    }
+
+    /// <summary>Closes an install's tab without asking, its notice with it: the tab is back at its prompt, with nothing to exit cleanly.</summary>
+    private async Task CloseInstallTabAsync(SessionPane? pane)
+    {
+        if (_notice.IsOpen && LastNotice is { Severity: InfoBarSeverity.Success }) _notice.IsOpen = false;
+        if (pane is not null && HostOf(pane) is { } host) await CloseTabAsync(host.Item, decided: true);
     }
 
     /// <summary>The key Add to PATH writes under, in place of the account's own, for the smoke; null in use.</summary>
@@ -652,16 +625,17 @@ internal sealed partial class MainWindow
 
     /// <summary>
     /// Add to PATH: Claude Code's folder goes on the end of the account's Path (<see cref="UserPath"/>), and the notice says
-    /// so, with Start a session still there. Tabs already open keep the Path they started with; new ones have it.
+    /// so, with Start a session and Close tab still there. Tabs already open keep the Path they started with; new ones have it.
     /// </summary>
-    internal void AddClaudeToPath()
+    internal void AddClaudeToPath(SessionPane? pane = null)
     {
         try
         {
             var added = UserPath.Add(ClaudeFolder, UserPathKeyOverride ?? UserPath.EnvironmentKey);
             Diagnostics.Log("setup: " + ClaudeFolder + (added ? " added to the account's Path" : " was already on the account's Path"));
-            ShowNotice(InfoBarSeverity.Success, "", SetupCatalog.ClaudeOnPathNotice, null, brief: false, content: InstalledActions("claude", offPath: false));
-            RefreshSetupRows();
+            if (SetupCatalog.Item("claude") is { } claude)
+                ShowNotice(InfoBarSeverity.Success, "", SetupCatalog.ClaudeOnPathNotice, null, brief: false, content: InstalledActions(claude, offPath: false, pane));
+            RefreshSetupAdvice();
         }
         catch (Exception exception) when (exception is UnauthorizedAccessException or System.Security.SecurityException or IOException)
         {
@@ -669,11 +643,111 @@ internal sealed partial class MainWindow
         }
     }
 
-    /// <summary>Start a session, from a row or the installed notice: New session with that agent picked, switched on if it was off.</summary>
-    private async Task StartSetupSessionAsync(string id)
+    /// <summary>Start a session, from a row, a card or the installed notice: the install's tab closed, then New session with that agent picked, switched on if it was off.</summary>
+    private async Task StartSetupSessionAsync(string id, SessionPane? installTab = null)
     {
         if (!AgentOn(id)) SetAgentEnabled(id, true);
-        if (_notice.IsOpen && LastNotice is { Severity: InfoBarSeverity.Success }) _notice.IsOpen = false;
+        await CloseInstallTabAsync(installTab);
         await ShowNewSessionAsync(agent: id);
+    }
+
+    // ---- Settings → Agents → Shell ----
+
+    private TextBlock? _shellStatus, _shellWhere;
+    private Button? _shellInstall;
+    private TextBox? _shellArguments;
+
+    /// <summary>The PowerShell card's facts, for verification: what it says, whether Install shows, and the arguments box.</summary>
+    internal (string Status, string Where, bool Install, string Arguments)? ShellCardFacts =>
+        _shellStatus is null ? null : (_shellStatus.Text, _shellWhere!.Text, _shellInstall!.Visibility == Visibility.Visible, _shellArguments!.Text);
+
+    /// <summary>
+    /// Settings → Agents, under the agents: PowerShell in a section of its own, a card like an agent's (Chris, November 27,
+    /// 2026). It says which PowerShell SicTerm runs in, offers Install while PowerShell 7 is missing, and keeps extra arguments
+    /// for PowerShell tabs, which agents do not get.
+    /// </summary>
+    private void BuildShellSection(StackPanel page)
+    {
+        page.Children.Add(Section("Shell"));
+        var head = new Grid { ColumnSpacing = 10 };
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var tile = _theme.AgentTile("shell", 24); tile.VerticalAlignment = VerticalAlignment.Center;
+        head.Children.Add(tile);
+        var labels = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
+        labels.Children.Add(_theme.BodyText("PowerShell", 13, 600));
+        _shellStatus = _theme.BodyText("", 12);
+        labels.Children.Add(_shellStatus);
+        Grid.SetColumn(labels, 1); head.Children.Add(labels);
+        _shellInstall = _theme.PrimaryButton("Install");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_shellInstall, "Install PowerShell 7");
+        _shellInstall.VerticalAlignment = VerticalAlignment.Center;
+        _shellInstall.Click += async (_, _) => { if (SetupCatalog.Item(SetupCatalog.PowerShell) is { } item) await ShowInstallAsync(item); };
+        Grid.SetColumn(_shellInstall, 2); head.Children.Add(_shellInstall);
+        var more = _theme.IconButton(((char)0xE712).ToString(), "Details", 28, 12);
+        more.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(more, 3); head.Children.Add(more);
+
+        var details = new StackPanel { Spacing = 8, Margin = new Thickness(0, 10, 4, 2), Visibility = Visibility.Collapsed };
+        _shellWhere = _theme.MonoText(""); _shellWhere.TextWrapping = TextWrapping.Wrap; _shellWhere.TextTrimming = TextTrimming.None;
+        details.Children.Add(_shellWhere);
+        _shellArguments = new TextBox { Header = "Extra arguments · JSON string array", Text = JsonSerializer.Serialize(_preferences.ShellArguments), FontFamily = Theme.Mono };
+        details.Children.Add(_shellArguments);
+        var note = _theme.Caption(SetupCatalog.ShellArgumentsNote); note.TextWrapping = TextWrapping.Wrap; note.TextTrimming = TextTrimming.None;
+        details.Children.Add(note);
+        var error = new TextBlock { Foreground = _theme.Danger, TextWrapping = TextWrapping.Wrap, FontFamily = Theme.Body, FontSize = 12, Visibility = Visibility.Collapsed };
+        var save = Theme.TextButton("Save PowerShell");
+        save.Click += (_, _) =>
+        {
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<string[]>(_shellArguments.Text) ?? throw new InvalidDataException("Arguments must be a JSON string array.");
+                if (parsed.Any(argument => argument is null)) throw new InvalidDataException("Arguments must be a JSON string array.");
+                error.Visibility = Visibility.Collapsed;
+                _preferences.ShellArguments = parsed;
+                SavePreferences();
+                UpdateStatus("PowerShell settings saved · new PowerShell tabs use them");
+            }
+            catch (Exception exception) when (exception is JsonException or InvalidDataException) { error.Text = exception.Message; error.Visibility = Visibility.Visible; }
+        };
+        details.Children.Add(save); details.Children.Add(error);
+        more.Click += (_, _) =>
+        {
+            var open = details.Visibility != Visibility.Visible;
+            details.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+            more.Content = Theme.Icon(open ? ((char)0xE70E).ToString() : ((char)0xE712).ToString(), 12, _theme.TextSecondary);
+            ToolTipService.SetToolTip(more, open ? "Hide details" : "Details");
+        };
+        var body = new Grid();
+        body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        body.Children.Add(head);
+        Grid.SetRow(details, 1); body.Children.Add(details);
+        page.Children.Add(new Border
+        {
+            Child = body, Background = _theme.Layer, BorderBrush = _theme.Stroke, BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 8, 6, 8)
+        });
+        RefreshShellCard();
+    }
+
+    /// <summary>The PowerShell card in step with the PC: which PowerShell, its version and where, and Install while 7 is missing.</summary>
+    private void RefreshShellCard()
+    {
+        if (_shellStatus is null || _shellWhere is null || _shellInstall is null) return;
+        string? shell = null;
+        try { shell = AgentDetection.PowerShellPath; }
+        catch (FileNotFoundException) { }
+        var seven = !SetupGaps.HasFlag(SetupGap.PowerShell);
+        string? version = null;
+        try { if (shell is not null && File.Exists(shell)) version = FileVersionInfo.GetVersionInfo(shell).ProductVersion?.Split(' ', '+')[0]; }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
+        (_shellStatus.Text, _shellStatus.Foreground) = seven
+            ? ("PowerShell 7" + (version is { Length: > 0 } && SetupGapsOverride is null ? " · " + version : ""), _theme.Success)
+            : ("Windows PowerShell 5.1", _theme.Warning);
+        _shellWhere.Text = shell is null ? "No PowerShell was found." : "Runs " + shell;
+        _shellInstall.Visibility = seven ? Visibility.Collapsed : Visibility.Visible;
     }
 }

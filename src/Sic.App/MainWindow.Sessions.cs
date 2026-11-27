@@ -379,7 +379,8 @@ internal sealed partial class MainWindow
     /// An interactive PowerShell; under the smoke test, the fixture script instead, so a verification run never loads the
     /// user's profile and a shell it starts through the ordinary paths answers the fixture's verbs.
     /// </summary>
-    private IReadOnlyList<string> NewShellArguments => _options.SmokeTest ? SmokeShellArguments : ["-NoLogo"];
+    /// <summary>A PowerShell tab's arguments: the PowerShell card's own, and the hook by which the tab reports its state (<see cref="Sic.Core.Shell.ShellStatus"/>).</summary>
+    private IReadOnlyList<string> NewShellArguments => _options.SmokeTest ? SmokeShellArguments : Sic.Core.Shell.ShellStatus.Arguments(_preferences.ShellArguments);
 
     private static TerminalLaunchRequest CreateShellRequest(IReadOnlyList<string> arguments, string directory) => new(AgentDetection.PowerShellPath, arguments, directory,
         Environment: new Dictionary<string, string?> { ["TERM"] = "xterm-256color", ["COLORTERM"] = "truecolor", ["TERM_PROGRAM"] = "SIC", ["TERMINAL_CWD"] = directory });

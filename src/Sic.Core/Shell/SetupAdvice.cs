@@ -47,7 +47,7 @@ public static class SetupAdvisor
 
 /// <summary>
 /// One row of the Get set up panel: PowerShell 7 or a built-in agent. <paramref name="Line"/> sits under the name,
-/// <paramref name="Detail"/> opens under "What is this?", and <paramref name="Page"/> is the vendor's own install page.
+/// <paramref name="Detail"/> opens under "What is this?" (closed until clicked), and <paramref name="Page"/> is the vendor's own install page.
 /// </summary>
 public sealed record SetupItem(string Id, string Name, string Line, string Detail, Uri Page);
 
@@ -64,20 +64,45 @@ public static class SetupCatalog
     public const string Heading = "Get set up";
 
     /// <summary>
-    /// The panel lists PowerShell 7 apart from the agents, each group under its own label and sentence: with one list of five
-    /// under "only one is needed", PowerShell 7 read as a fifth choice of agent (Chris, November 27, 2026).
+    /// The panel lists PowerShell 7 apart from the agents, each group under its own label: with one list of five under "only one
+    /// is needed", PowerShell 7 read as a fifth choice of agent. A sentence under each label was taken out as more than the panel
+    /// needs; each row keeps its "What is this?" paragraph, closed until clicked (Chris, November 27, 2026).
     /// </summary>
     public const string ShellLabel = "PowerShell";
 
-    public const string ShellIntro = "SicTerm runs its tabs and agents in PowerShell 7 when it is installed, and in Windows PowerShell 5.1 until then.";
-
-    public const string AgentsLabel = "Coding agents";
-
-    public const string AgentsIntro = "A coding agent is an AI assistant that works in a terminal. It reads and edits the files in a folder and runs commands, " +
-        "asking before it acts. SicTerm can run four of them. Only one is needed.";
+    public const string AgentsLabel = "Coding agents · only one is needed";
 
     /// <summary>Under the rows, once for all of them.</summary>
     public const string Footnote = "Install opens a new tab with the command typed. Nothing runs until Enter is pressed.";
+
+    /// <summary>Under the command in the install popup.</summary>
+    public const string PopupFootnote = "Install opens a new tab with this command typed. Nothing runs until Enter is pressed.";
+
+    /// <summary>Under Node.js's command in OpenCode's popup.</summary>
+    public const string NodeFootnote = "Install Node.js opens a new tab with this command typed. Once Node.js is found, OpenCode can be installed.";
+
+    /// <summary>OpenCode's popup on a PC without npm.</summary>
+    public const string OpenCodeNeedsNode = "OpenCode installs through npm, which comes with Node.js. Node.js installs for all users and needs admin rights; Windows asks for them when it starts.";
+
+    public const string PowerShellInstalled = "PowerShell 7 is installed. New tabs run in it.";
+
+    public const string NodeInstalled = "Node.js is installed. OpenCode can be installed now.";
+
+    /// <summary>An agent's install found: the first one leaves the home panel behind, so the notice says where the rest are.</summary>
+    public static string AgentInstalled(string name) => name + " is installed. More agents can be installed from Settings → Agents.";
+
+    /// <summary>Under the PowerShell card's arguments in Settings → Agents.</summary>
+    public const string ShellArgumentsNote = "For PowerShell tabs only. Agents start without them.";
+
+    /// <summary>
+    /// Node.js, for OpenCode, which has no Windows installer and installs through npm. Not a row of its own: OpenCode's popup leads
+    /// with it where npm is not on Path. Its winget package is the MSI (wix), installed for all users, so Windows asks for admin
+    /// rights as it starts; without winget, nodejs.org's download page.
+    /// </summary>
+    public static readonly SetupItem Node = new("node", "Node.js",
+        "Needed by OpenCode, which installs through npm.",
+        "Node.js installs for all users and needs admin rights; Windows asks for them when it starts.",
+        new("https://nodejs.org/en/download"));
 
     /// <summary>The notice over a tab Install has just typed into.</summary>
     public const string Typed = "Nothing runs until Enter is pressed.";
@@ -93,7 +118,7 @@ public static class SetupCatalog
     public static readonly IReadOnlyList<SetupItem> Items =
     [
         new(PowerShell, "PowerShell 7",
-            "Recommended. PowerShell 5.1 runs the basics, but some coding tools and commands only work in PowerShell 7.",
+            "Recommended. PowerShell 5.1 works, but many tools require 7.",
             "Windows comes with PowerShell 5.1, which dates from 2016. PowerShell 7 is the current version from Microsoft and installs beside it. " +
             "In 5.1, npm and some commands written for 7 fail.",
             new("https://learn.microsoft.com/powershell/scripting/install/install-powershell-on-windows")),
@@ -130,6 +155,7 @@ public static class SetupCatalog
         "claude" => "irm https://claude.ai/install.ps1 | iex",
         "codex" => "powershell -ExecutionPolicy ByPass -c \"irm https://chatgpt.com/codex/install.ps1 | iex\"",
         "opencode" => npm ? "npm.cmd install -g --allow-scripts=@opencode/cli @opencode/cli@latest" : null,
+        "node" => winget ? "winget install --id OpenJS.NodeJS.LTS --source winget" : null,
         "hermes" => "iex (irm https://hermes-agent.nousresearch.com/install.ps1)",
         _ => null
     };
