@@ -3752,10 +3752,13 @@ internal sealed partial class MainWindow
             // reads back as this copy's, from New session's command, since its Icon is the mark. The real menu key and the package
             // registration are not touched: the scratch key is deleted again.
             var exeDirectory = AppContext.BaseDirectory;
-            var explorerCommandBuilt = File.Exists(Path.Combine(exeDirectory, ExplorerMenu.CommandFileName));
-            if (!explorerCommandBuilt) throw new InvalidOperationException("SicExplorerCommand.dll was not published beside the exe; the C++ build is part of Publish-App.ps1.");
-            var explorerPackageSigned = ExplorerCommandProbe.PackageSignedBy(exeDirectory, ExplorerMenu.PackagePublisher) == true;
-            if (!explorerPackageSigned) throw new InvalidOperationException("SicTerm.Identity.msix is missing beside the exe or is not signed by " + ExplorerMenu.PackagePublisher + ".");
+            // A build that left both out on purpose (Publish-App.ps1 -SkipIdentity: a PC without the C++ tools or the signing
+            // sign-in, as anyone building from source) skips the menu's checks below, and the report says so (identitySkipped).
+            var identitySkipped = _options.WithoutIdentity;
+            var explorerCommandBuilt = !identitySkipped && File.Exists(Path.Combine(exeDirectory, ExplorerMenu.CommandFileName));
+            if (!identitySkipped && !explorerCommandBuilt) throw new InvalidOperationException("SicExplorerCommand.dll was not published beside the exe; the C++ build is part of Publish-App.ps1.");
+            var explorerPackageSigned = !identitySkipped && ExplorerCommandProbe.PackageSignedBy(exeDirectory, ExplorerMenu.PackagePublisher) == true;
+            if (!identitySkipped && !explorerPackageSigned) throw new InvalidOperationException("SicTerm.Identity.msix is missing beside the exe or is not signed by " + ExplorerMenu.PackagePublisher + ".");
             // Run at Startup (November 12, 2026), under a scratch name so the person's own entry is never touched: on writes this exe
             // and reads back as on, off removes it.
             var scratchStartup = "SicTerm-smoke-" + Guid.NewGuid().ToString("N");
@@ -3768,7 +3771,8 @@ internal sealed partial class MainWindow
             }
             finally { StartupRegistration.Disable(scratchStartup); }
             var scratchMenuKey = @"Software\Super-Intelligent-Chat\Smoke\" + Guid.NewGuid().ToString("N");
-            bool explorerMenuOwned, explorerCommandEnumerated;
+            bool explorerMenuOwned = false, explorerCommandEnumerated = false;
+            if (!identitySkipped)
             try
             {
                 var menuItems = ExplorerMenuRegistration.Items(Environment.ProcessPath!, _preferences.Agents, IconSourceFor, LibraryIconFor);
@@ -3831,7 +3835,7 @@ internal sealed partial class MainWindow
                 tabBarBottom, tabsBottomImage, tabsBottomWindowImage, tabsBottomNoticeImage, tabsBottomLightImage, tabsBottomSplitImage, tabsBottomRightImage, fullScreen, fullScreenImage, fullScreenWindowImage, readyChime, chimesRung = ChimesRung, fontWidths,
                 findMatched, dropPastesQuotedPath, pasteFilteredAndTrimmed, multiLinePasteAsked, pasteThroughHost, splitCreated, splitRefused, splitTiled, splitSaved, paneFocusMoved, paneRenamed, paneBorder, paneBorderImages, paneBorderPreview, tabDuplicated, tabMoved, workspacesGrouped, paneDragged, movedOut, crossMoved, tabsConsolidated, resumeJoined, failedStartRecovered, backgroundStartWaited, resumeAll, resumeAllButton, noticeToasted, f5ResumesAll, keyboardHelp, resumeAllOnLaunch, hiddenWindowStart, dragRegions, dragSettledMs, dragAreas = DragAreaText(_dragRects), presenceHeuristic, presenceTitle, presenceWorkingAfterMs = workingAfter, presenceQuietForMs = quietFor, activeTabColored, panelCollapsed, panelExpanded, panelSlid, panelResized, workspacesPanel,
                 themesApplied, railAccentReadable, lightThemeApplied, darkThemeApplied, lightStartupApplied, gracefulExit, alwaysExitCleanly, quitDialog, windowPlacementTracked,
-                openFolderReceived, openAgentStarted, openMissingRefused, explorerCommandBuilt, explorerPackageSigned, explorerMenuOwned, explorerCommandEnumerated, panelKeptByResumeAll,
+                openFolderReceived, openAgentStarted, openMissingRefused, identitySkipped, explorerCommandBuilt, explorerPackageSigned, explorerMenuOwned, explorerCommandEnumerated, panelKeptByResumeAll,
                 consoleHost, consoleHostVersion = ConsoleHost.PackagedVersion, windowsPtyBuild = windowsPty.BuildNumber, zeroWidth, cursorRowsAgree, queryAnswersHidden,
                 petImageDrawn, petImageCleared, petImageDeleted, petImagesOff, petImagesOffAtStart, petConsoleHost, consoleHostCurrent = ConsoleHost.Current,
                 petInside, petOutside, petBox = new { left = petLeft, top = petTop, right = petRight, bottom = petBottom, scale = petScale }, petImage, petOffImage,

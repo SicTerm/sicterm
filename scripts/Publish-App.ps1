@@ -81,7 +81,7 @@ if ($target -eq $default -and (Test-Path -LiteralPath $next)) {
 
 if ($Smoke) {
     # The smoke script throws on any failed check.
-    & (Join-Path $PSScriptRoot 'Test-AppSmoke.ps1') -ApplicationPath (Join-Path $target 'SicTerm.exe') -ScratchRoot $ScratchRoot
+    & (Join-Path $PSScriptRoot 'Test-AppSmoke.ps1') -ApplicationPath (Join-Path $target 'SicTerm.exe') -ScratchRoot $ScratchRoot -SkipIdentity:$SkipIdentity
 }
 
 if ($target -eq $next) { "Published to $target, because SIC is running from $default. Quit SIC and start $target\SicTerm.exe to use this build." }
