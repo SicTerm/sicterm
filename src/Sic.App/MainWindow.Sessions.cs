@@ -143,6 +143,10 @@ internal sealed partial class MainWindow
         var resumeAll = new MenuFlyoutItem { Text = "Resume all tabs", KeyboardAcceleratorTextOverride = "F5", Icon = ResumeAllMark.Icon() };
         resumeAll.Click += async (_, _) => await ResumeAllFromUserAsync(new("Resume all tabs on the tab's right-click menu", DateTimeOffset.UtcNow));
         menu.Opening += (_, _) => resumeAll.IsEnabled = !ResumingAll && AllPanes.Any(pane => !pane.IsRunning);
+        // The tab's own workspace, read as the menu opens and as it is clicked: the tab may have moved to another meanwhile.
+        var resumeHere = new MenuFlyoutItem { Text = "Resume workspace tabs", KeyboardAcceleratorTextOverride = "Ctrl+F5", Icon = ResumeAllMark.Icon() };
+        resumeHere.Click += async (_, _) => await ResumeWorkspaceFromUserAsync(WorkspaceOf(host), new("Resume workspace tabs on the tab's right-click menu", DateTimeOffset.UtcNow));
+        menu.Opening += (_, _) => resumeHere.IsEnabled = !ResumingAll && WorkspaceOf(host) is { } own && HasResumable(own);
         var consolidate = new MenuFlyoutItem { Text = "Consolidate tabs by folder", KeyboardAcceleratorTextOverride = "F6", Icon = new FontIcon { Glyph = ConsolidateGlyph, FontFamily = Theme.Icons } };
         consolidate.Click += (_, _) => ConsolidateTabsFromUser();
         menu.Opening += (_, _) => consolidate.IsEnabled = ConsolidationGroups().Count > 0;
@@ -167,7 +171,7 @@ internal sealed partial class MainWindow
         };
         var close = new MenuFlyoutItem { Text = "Close tab", Icon = new FontIcon { Glyph = "\uE711", FontFamily = Theme.Icons } };
         close.Click += async (_, _) => await CloseTabAsync(tab);
-        menu.Items.Add(rename); menu.Items.Add(color); menu.Items.Add(splitRight); menu.Items.Add(splitDown); menu.Items.Add(evenItem); menu.Items.Add(moveOut); menu.Items.Add(duplicate); menu.Items.Add(resumeAll); menu.Items.Add(consolidate); menu.Items.Add(new MenuFlyoutSeparator()); menu.Items.Add(closeOthers); menu.Items.Add(pinTab); menu.Items.Add(pinClose); menu.Items.Add(close);
+        menu.Items.Add(rename); menu.Items.Add(color); menu.Items.Add(splitRight); menu.Items.Add(splitDown); menu.Items.Add(evenItem); menu.Items.Add(moveOut); menu.Items.Add(duplicate); menu.Items.Add(resumeAll); menu.Items.Add(resumeHere); menu.Items.Add(consolidate); menu.Items.Add(new MenuFlyoutSeparator()); menu.Items.Add(closeOthers); menu.Items.Add(pinTab); menu.Items.Add(pinClose); menu.Items.Add(close);
         tab.ContextFlyout = menu;
         tab.Content = content;
         _open.Add(tab, host);

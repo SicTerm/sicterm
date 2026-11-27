@@ -424,7 +424,7 @@ internal sealed partial class MainWindow
         [
             ("Ctrl+Shift+T", "New session"), ("Ctrl+Shift+W", "Close tab"), ("Ctrl+Shift+D", "Duplicate tab (new session, same agent and folder)"),
             ("Ctrl+Tab", "Next tab (with Shift, the one before)"), ("Ctrl+1 … 9", "Jump to a tab (9, the last)"), ("Alt+1 … 9", "Jump to a tab, with the modifier the pane keys use"),
-            ("Ctrl+F2", "Rename the tab"), ("F5", "Resume all tabs in this workspace (also Ctrl+Shift+R)"), ("F6", "Consolidate this workspace's tabs by folder")
+            ("Ctrl+F2", "Rename the tab"), ("F5", "Resume all tabs, in every workspace (also Ctrl+Shift+R)"), ("Ctrl+F5", "Resume this workspace's tabs only"), ("F6", "Consolidate this workspace's tabs by folder")
         ]),
         ("Agent workspaces",
         [

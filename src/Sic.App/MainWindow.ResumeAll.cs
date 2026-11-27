@@ -12,7 +12,8 @@ namespace Sic.App;
 /// to start; it then comes back to the workspace and the tab it began on. One notice at the end says what started and what
 /// did not, in place of a notice per pane: brief when everything started, held when anything fell short. Until November 9,
 /// 2026 it took the current workspace only, while the rail's button was lit for a placeholder in any (Chris: "resume all for
-/// all folders").
+/// all folders"). Since November 26, 2026 a run can take one workspace alone: Resume workspace tabs, on the workspace's
+/// and the tab's menus and Ctrl+F5 (Chris: "resume only items in the selected workspace").
 /// </summary>
 internal sealed partial class MainWindow
 {
@@ -38,22 +39,41 @@ internal sealed partial class MainWindow
     /// </summary>
     internal Task<bool> ResumeAllFromUserAsync(StartRequest request) => ResumeAllAsync(request);
 
-    /// <summary>Runs Resume all, or joins the run under way. The rail button is greyed for the run and re-read after it.</summary>
-    internal async Task<bool> ResumeAllAsync(StartRequest request)
+    /// <summary>
+    /// Resume workspace tabs (Ctrl+F5, the workspace's menu, the tab's menu): Resume all for one workspace's tabs, the rest
+    /// left waiting. The run shows that workspace and stays on it: from another workspace's menu, the workspace asked for is the
+    /// one the user is going to, as Consolidate tabs on the same menu goes there.
+    /// </summary>
+    internal Task<bool> ResumeWorkspaceFromUserAsync(Workspace? workspace, StartRequest request)
     {
-        var run = _resumeAll.RunAsync(() => ResumeAllOnceAsync(request));
+        if (workspace is null || !_workspaces.Contains(workspace)) return Task.FromResult(false);
+        if (!ReferenceEquals(workspace, _workspace)) SwitchWorkspace(workspace);
+        return ResumeAllAsync(request, workspace);
+    }
+
+    /// <summary>Whether a workspace has a pane that is not running, for its menus' Resume workspace tabs.</summary>
+    internal bool HasResumable(Workspace workspace) => HostsOf(workspace).Any(host => !host.Closing && host.Panes.Any(pane => !pane.IsRunning));
+
+    /// <summary>
+    /// Runs Resume all, for every workspace or for <paramref name="only"/>, or joins the run under way (whichever it takes). The
+    /// rail button is greyed for the run and re-read after it.
+    /// </summary>
+    internal async Task<bool> ResumeAllAsync(StartRequest request, Workspace? only = null)
+    {
+        var run = _resumeAll.RunAsync(() => ResumeAllOnceAsync(request, only));
         UpdateStatus();
         try { return await run; }
         finally { if (!_closing) UpdateStatus(); }
     }
 
     /// <summary>Returns whether everything asked for started; a run cut short by a Quit, or with any failure, returns false.</summary>
-    private async Task<bool> ResumeAllOnceAsync(StartRequest request)
+    private async Task<bool> ResumeAllOnceAsync(StartRequest request, Workspace? only)
     {
         if (_closing || _quitting) return false;
-        if (_workspaces.All(workspace => !HostsOf(workspace).Any()))
+        var taken = only is null ? _workspaces.ToList() : _workspaces.Where(workspace => ReferenceEquals(workspace, only)).ToList();
+        if (taken.All(workspace => !HostsOf(workspace).Any()))
         {
-            NotifyBriefly("Nothing to resume", "No tabs are open.");
+            NotifyBriefly("Nothing to resume", only is null ? "No tabs are open." : "No tabs are open in " + WorkspaceName(only) + ".");
             return false;
         }
         var home = _workspace;
@@ -62,7 +82,7 @@ internal sealed partial class MainWindow
         // order; a tab or pane closed during the run is passed over when its turn comes. The live limit is a workspace's (a
         // start counts the strip's, LiveOrStarting), so each plan has its own room, counted from its own tabs.
         var runs = new List<(Workspace Workspace, List<TabHost> Hosts, List<List<SessionPane>> Panes, ResumeAllPlan Plan)>();
-        foreach (var workspace in _workspaces.OrderBy(workspace => ReferenceEquals(workspace, home) ? 0 : 1))
+        foreach (var workspace in taken.OrderBy(workspace => ReferenceEquals(workspace, home) ? 0 : 1))
         {
             var hosts = HostsOf(workspace).ToList();
             var panesOf = hosts.Select(host => host.Panes.ToList()).ToList();
