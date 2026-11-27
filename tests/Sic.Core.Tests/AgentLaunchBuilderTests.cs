@@ -71,6 +71,24 @@ public sealed class AgentLaunchBuilderTests
         Assert.Null(value);
     }
 
+    /// <summary>
+    /// Codex at its default home runs without CODEX_HOME, so on a PC where it has never run it creates the folder itself: set,
+    /// CODEX_HOME must name a folder that exists ("Error finding codex home"; a Windows Sandbox run, November 27, 2026). Any
+    /// other home is named.
+    /// </summary>
+    [Theory]
+    [InlineData(".codex", null)]
+    [InlineData(@".codex\", null)]
+    [InlineData(".CODEX", null)]
+    [InlineData(".codex-work", ".codex-work")]
+    public void Build_CodexAtItsDefaultHomeRunsWithoutCodexHome(string underProfile, string? expected)
+    {
+        var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var request = AgentLaunchBuilder.Build(@"C:\pwsh.exe", new AgentDefinition("codex", "Codex", "codex", [], Path.Combine(profile, underProfile)), Path.GetTempPath());
+        Assert.True(request.Environment!.TryGetValue("CODEX_HOME", out var value));
+        Assert.Equal(expected is null ? null : Path.Combine(profile, expected), value);
+    }
+
     [Theory]
     [InlineData(".claude-work")]
     [InlineData(@".claude\isolated")]

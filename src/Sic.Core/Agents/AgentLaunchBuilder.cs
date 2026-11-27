@@ -65,6 +65,9 @@ public static class AgentLaunchBuilder
     /// Claude Code's default home, %USERPROFILE%\.claude, gets a null value: no CLAUDE_CONFIG_DIR at all. Set, even to that
     /// same folder, it makes Claude Code read its global state from %CLAUDE_CONFIG_DIR%\.claude.json instead of
     /// %USERPROFILE%\.claude.json, where every MCP server added at user scope is kept, so the pane would have none of them.
+    /// Codex's default home, %USERPROFILE%\.codex, gets a null value too: set, CODEX_HOME must name a folder that exists, and on a
+    /// PC where Codex has never run it does not, so Codex stopped at "Error finding codex home" instead of creating it (a Windows
+    /// Sandbox run, November 27, 2026).
     /// </summary>
     public static KeyValuePair<string, string?> HistoryVariable(AgentDefinition agent)
     {
@@ -72,8 +75,8 @@ public static class AgentLaunchBuilder
         {
             case "hermes": return new("HERMES_HOME", agent.HistoryDirectory);
             // Null removes it from what the pane inherits too: a SIC started from an older SIC's pane has it set to the default.
-            case "claude": return new("CLAUDE_CONFIG_DIR", IsClaudeDefaultHome(agent.HistoryDirectory) ? null : agent.HistoryDirectory);
-            case "codex": return new("CODEX_HOME", agent.HistoryDirectory);
+            case "claude": return new("CLAUDE_CONFIG_DIR", IsDefaultHome(agent.HistoryDirectory, ".claude") ? null : agent.HistoryDirectory);
+            case "codex": return new("CODEX_HOME", IsDefaultHome(agent.HistoryDirectory, ".codex") ? null : agent.HistoryDirectory);
             case "opencode":
                 var home = Path.TrimEndingDirectorySeparator(agent.HistoryDirectory);
                 if (!Path.GetFileName(home).Equals("opencode", StringComparison.OrdinalIgnoreCase) || Path.GetDirectoryName(home) is not { Length: > 0 } parent)
@@ -83,12 +86,12 @@ public static class AgentLaunchBuilder
         }
     }
 
-    /// <summary>Whether <paramref name="home"/> is %USERPROFILE%\.claude: full paths compared without a trailing separator, ignoring case.</summary>
-    private static bool IsClaudeDefaultHome(string home)
+    /// <summary>Whether <paramref name="home"/> is %USERPROFILE%\<paramref name="folder"/>: full paths compared without a trailing separator, ignoring case.</summary>
+    private static bool IsDefaultHome(string home, string folder)
     {
         static string Normal(string path) => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
         return Path.IsPathFullyQualified(home) && string.Equals(Normal(home),
-            Normal(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude")), StringComparison.OrdinalIgnoreCase);
+            Normal(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), folder)), StringComparison.OrdinalIgnoreCase);
     }
 
     public static bool IsExactSessionId(string agent, string id) => agent switch
