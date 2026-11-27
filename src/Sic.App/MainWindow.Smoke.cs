@@ -2635,8 +2635,21 @@ internal sealed partial class MainWindow
                 NotifyBriefly("Smoke", "A plain notice.");
                 var setupLinksDropped = _notice.Content is null;
                 _notice.IsOpen = false; LastNotice = null;
-                setupNotice = setupBoth && setupBarBoth && setupFollowed && setupClosedAtLaunch && setupAgentAlone && setupClosedInSettings && setupGoneWithGap && setupLinksDropped;
-                if (!setupNotice) throw new InvalidOperationException($"The setup notice did not show, follow or close as laid out: both={setupBoth} bar={setupBarBoth} followed={setupFollowed} closedAtLaunch={setupClosedAtLaunch} agentAlone={setupAgentAlone} closedInSettings={setupClosedInSettings} gone={setupGoneWithGap} linksDropped={setupLinksDropped} message='{_notice.Message}' bar='{SetupBar?.Message}'.");
+                // Another notice over the setup notice only borrows its place: when it goes, the setup notice comes back with the
+                // gaps still open, as after "Agent turned on" (a Windows Sandbox run, November 27, 2026).
+                SetupGapsOverride = SetupGap.Agent;
+                ShowSetupNotice();
+                var setupBeforeOther = SetupNoticeShown && _notice.Message == Said(SetupGap.Agent);
+                NotifyBriefly("Smoke", "A notice over the setup notice.");
+                var setupPushedAside = !SetupNoticeShown && _notice.Message == "A notice over the setup notice.";
+                _notice.IsOpen = false;
+                var setupCameBack = setupBeforeOther && setupPushedAside && await EventuallyAsync(() => SetupNoticeShown && _notice.Message == Said(SetupGap.Agent) && SetupLinkNames(_notice.Content).Count == 4);
+                SetupGapsOverride = SetupGap.None;
+                RefreshSetupAdvice();
+                var setupGoneAgain = !_notice.IsOpen;
+                _notice.IsOpen = false; LastNotice = null;
+                setupNotice = setupBoth && setupBarBoth && setupFollowed && setupClosedAtLaunch && setupAgentAlone && setupClosedInSettings && setupGoneWithGap && setupLinksDropped && setupCameBack && setupGoneAgain;
+                if (!setupNotice) throw new InvalidOperationException($"The setup notice did not show, follow or close as laid out: both={setupBoth} bar={setupBarBoth} followed={setupFollowed} closedAtLaunch={setupClosedAtLaunch} agentAlone={setupAgentAlone} closedInSettings={setupClosedInSettings} gone={setupGoneWithGap} linksDropped={setupLinksDropped} before={setupBeforeOther} pushedAside={setupPushedAside} cameBack={setupCameBack} goneAgain={setupGoneAgain} message='{_notice.Message}' bar='{SetupBar?.Message}'.");
             }
             finally
             {

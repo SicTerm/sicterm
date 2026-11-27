@@ -1228,6 +1228,9 @@ internal sealed partial class MainWindow : Window
     /// <summary><paramref name="content"/> goes under the message (the setup notice's links); every other notice takes it away.</summary>
     private void ShowNotice(InfoBarSeverity severity, string title, string message, Microsoft.UI.Xaml.Controls.Primitives.ButtonBase? action, bool brief, UIElement? content = null)
     {
+        // The setup notice pushed aside comes back when this one goes (MainWindow.Setup.cs): "Agent turned on" had taken its
+        // place for good in a Windows Sandbox run (November 27, 2026).
+        if (SetupNoticeShown) _setupNoticeDue = true;
         var generation = ++_noticeGeneration;
         StopNoticeMotion();
         // A notice already up changes its text where it is; one on its way down comes back up from where it got to.

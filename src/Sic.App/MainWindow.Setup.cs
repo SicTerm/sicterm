@@ -12,6 +12,8 @@ namespace Sic.App;
 /// detection has answered and the first-run welcome has closed, and at every launch until its X is clicked; in Settings → Agents
 /// it is a bar at the top of the page until its X is clicked there. Each place remembers the gaps closed in it, the PowerShell
 /// one and the agent one apart, and neither shows a gap the PC no longer has: it goes as soon as detection or the shell says so.
+/// Another notice that takes its place (Agent turned on, an error) only borrows it: when that one goes, the setup notice comes
+/// back with the gaps still open.
 /// </summary>
 internal sealed partial class MainWindow
 {
@@ -85,6 +87,8 @@ internal sealed partial class MainWindow
         ShowNotice(InfoBarSeverity.Informational, "", advice.Message, null, brief: false, content: SetupLinks(advice));
         _setupNoticeGaps = gaps;
         _setupNoticeGeneration = _noticeGeneration;
+        // ShowNotice marks a setup notice it replaces as due again, which this one, its own update, is not.
+        _setupNoticeDue = false;
     }
 
     /// <summary>The launch notice's X: its gaps are not shown at launch again.</summary>
