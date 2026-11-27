@@ -25,18 +25,20 @@ internal sealed partial class MainWindow
     private void ToggleZoom()
     {
         if (SelectedHost is not { Panes.Count: > 0 } host) return;
-        SetZoomed(host, host.Content.Zoomed is not null ? null : FocusedPane(host));
+        SetZoomed(host, host.Saved.Zoomed is not null ? null : FocusedPane(host));
     }
 
     /// <summary>
     /// Zooms <paramref name="pane"/> in its tab, or with null puts the tab's zoomed pane back, gives the pane the keyboard and
-    /// saves the tab. Nothing is started or reloaded: the pane is only laid out again, and its terminal resized.
+    /// saves the tab. Nothing is started or reloaded: the pane is only laid out again, and its terminal resized. The card grows
+    /// out of the pane's place and shrinks back into it as Menu Animation says (<see cref="PanelSlides"/>); everything else that
+    /// shows a zoom (a tab switched to, a restore, a resize, a setting) places it at once.
     /// </summary>
     private void SetZoomed(TabHost host, SessionPane? pane)
     {
         host.Saved = host.Saved with { Zoomed = pane?.Descriptor.Id };
         host.Item.Tag = host.Saved;
-        ApplyZoom(host);
+        ApplyZoom(host, animate: PanelSlides);
         var focus = pane ?? FocusedPane(host);
         SetActivePane(focus);
         if (focus.IsRunning && ReferenceEquals(host, SelectedHost)) focus.FocusInput();
@@ -45,15 +47,47 @@ internal sealed partial class MainWindow
 
     /// <summary>
     /// Shows the tab as its saved zoom says: the card where <see cref="ZoomCard"/> puts it, the terminal area lifted over the
-    /// sidebar while the tab showing has one, and the panes told whether they are zoomed (their menu's item reads so).
+    /// sidebar while the tab showing has one, and the panes told whether they are zoomed (their menu's item reads so). For the
+    /// Screen frame a window too small for the card is grown first and the card placed once the body has its new size; zooming
+    /// out, the terminal area comes down, and a grown window goes back, once the card has shrunk into its place.
     /// </summary>
-    private void ApplyZoom(TabHost host)
+    private void ApplyZoom(TabHost host, bool animate = false)
     {
         var zoomed = host.Saved.Zoomed is { } id && host.Panes.Any(pane => pane.Descriptor.Id == id) ? id : null;
-        host.Content.Zoom(zoomed, zoomed is null ? default : ZoomCard(host.Content));
         foreach (var pane in host.Panes) pane.IsZoomed = pane.Descriptor.Id == zoomed;
-        if (ReferenceEquals(host, SelectedHost)) LiftWork(zoomed is not null);
+        var showing = ReferenceEquals(host, SelectedHost);
+        if (showing && zoomed is not null && _started && !_closing && PaneZoom.Normalize(_preferences.PaneZoom) == PaneZoom.Screen && GrowForZoom())
+        {
+            Canvas.SetZIndex(_work, LiftedWork);
+            _ = PlaceZoomAfterGrowthAsync(host, animate);
+            RefreshActiveRing();
+            return;
+        }
+        var moved = host.Content.Zoom(zoomed, zoomed is null ? default : ZoomCard(host.Content), animate && showing);
+        if (showing)
+        {
+            if (zoomed is null && !moved.IsCompleted) _ = LowerWorkAfterAsync(host, moved);
+            else LiftWork(zoomed is not null);
+        }
         RefreshActiveRing();
+    }
+
+    /// <summary>The window has just grown for the card: the card is placed once the body has been laid out at its new size, or after half a second at most.</summary>
+    private async Task PlaceZoomAfterGrowthAsync(TabHost host, bool animate)
+    {
+        var resized = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void Resized(object sender, SizeChangedEventArgs args) => resized.TrySetResult();
+        _body.SizeChanged += Resized;
+        try { await Task.WhenAny(resized.Task, Task.Delay(500)); }
+        finally { _body.SizeChanged -= Resized; }
+        if (ReferenceEquals(host, SelectedHost) && host.Saved.Zoomed is not null) ApplyZoom(host, animate);
+    }
+
+    /// <summary>Zoomed out with motion: the card stays over the sidebar until it is back in its place, and only then does the terminal area come down and a grown window go back.</summary>
+    private async Task LowerWorkAfterAsync(TabHost host, Task moved)
+    {
+        await moved;
+        if (ReferenceEquals(host, SelectedHost) && host.Content.Zoomed is null) LiftWork(false);
     }
 
     /// <summary>
@@ -101,11 +135,12 @@ internal sealed partial class MainWindow
         else ShrinkAfterZoom();
     }
 
-    private void GrowForZoom()
+    /// <summary>Grows the window for the Screen frame's card when it needs the room; true when it did now.</summary>
+    private bool GrowForZoom()
     {
-        if (_zoomGrowth is not null || _fullScreen || AppWindow.Presenter is not OverlappedPresenter { State: OverlappedPresenterState.Restored }) return;
+        if (_zoomGrowth is not null || _fullScreen || AppWindow.Presenter is not OverlappedPresenter { State: OverlappedPresenterState.Restored }) return false;
         var (workWidth, workHeight) = ZoomWorkArea();
-        if (_body.ActualWidth <= 0 || PaneZoom.ScreenCardFits(_body.ActualWidth, _body.ActualHeight, workWidth, workHeight, _preferences.PaneZoomPercent, ZoomStrip)) return;
+        if (_body.ActualWidth <= 0 || PaneZoom.ScreenCardFits(_body.ActualWidth, _body.ActualHeight, workWidth, workHeight, _preferences.PaneZoomPercent, ZoomStrip)) return false;
         var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
         // The window's rectangle takes in its invisible resize borders; the visible frame is put at the work area's edges.
         var (left, top, right, bottom) = InvisibleBorders();
@@ -113,6 +148,7 @@ internal sealed partial class MainWindow
         AppWindow.MoveAndResize(new RectInt32(area.X - left, area.Y - top, area.Width + left + right, area.Height + top + bottom));
         _zoomGrowth = (before, AppWindowBounds);
         Diagnostics.Log($"zoom: window grown to the work area for the Screen frame, from {before.X},{before.Y} {before.Width}x{before.Height}");
+        return true;
     }
 
     private void ShrinkAfterZoom()

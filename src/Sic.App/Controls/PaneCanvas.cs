@@ -2,6 +2,7 @@ using Sic.Core.State;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Windows.Foundation;
 
 namespace Sic.App.Controls;
@@ -36,8 +37,19 @@ internal sealed class PaneCanvas : Panel
     private readonly Border _dim = new() { Visibility = Visibility.Collapsed };
     private string? _zoomed;
     private PaneRect _zoomCard;
-    // Over the tiled panes and the dividers: the dim, the zoomed pane on it, and the drop mark above them all.
-    private const int DimLayer = 10, ZoomedLayer = 11, DropLayer = 12;
+    // Over the tiled panes and the dividers: the dim, a pane on its way back from the card, the zoomed pane, and the drop mark above them all.
+    private const int DimLayer = 10, LeavingLayer = 11, ZoomedLayer = 12, DropLayer = 13;
+    // The zoom's motion while it runs: the panes it moves, each laid out at its new place at once and drawn from its old one by a
+    // render transform that eases away (the terminal is resized once, not at every frame), and the dim fading in or out.
+    private Storyboard? _zoomMotion;
+    private readonly List<SessionPane> _moving = [];
+    private TaskCompletionSource? _zoomMoved;
+
+    /// <summary>How long the card takes to grow out of the pane's place or to shrink back into it. The smoke slows it to watch it.</summary>
+    internal static TimeSpan ZoomMotion { get; set; } = TimeSpan.FromMilliseconds(180);
+
+    /// <summary>Whether the zoom's motion is running, for verification.</summary>
+    internal bool ZoomMoving => _zoomMotion is not null;
 
     /// <summary>A press on the dim behind the zoomed pane, with the pane under it (the nearest, on a divider), already found.</summary>
     internal event Action<string>? DimPressed;
@@ -85,18 +97,112 @@ internal sealed class PaneCanvas : Panel
     /// <summary>
     /// Shows the pane <paramref name="pane"/> as a card at <paramref name="card"/> (the canvas's pixels; it may reach past the
     /// canvas's edges), over the other panes, which stay tiled under a dim; null puts it back in its place. Only the arrangement
-    /// changes: the pane stays a child of the canvas, so its terminal is resized and never reloaded.
+    /// changes: the pane stays a child of the canvas, so its terminal is resized and never reloaded. With <paramref name="animate"/>
+    /// the card grows out of the pane's place, or shrinks back into it, and the dim fades, over <see cref="ZoomMotion"/>; a zoom
+    /// moved to another pane does both at once. The task ends when the motion has, at once without one. A new card for the same
+    /// pane (the window resized) is never animated, and leaves a motion under way running.
     /// </summary>
-    internal void Zoom(string? pane, PaneRect card)
+    internal Task Zoom(string? pane, PaneRect card, bool animate = false)
     {
-        if (_zoomed == pane && (pane is null || _zoomCard == card)) return;
-        if (_zoomed is not null && Panes.FirstOrDefault(item => item.Descriptor.Id == _zoomed) is { } previous) Canvas.SetZIndex(previous, 0);
+        if (_zoomed == pane && (pane is null || _zoomCard == card)) return _zoomMoved?.Task ?? Task.CompletedTask;
+        var leaving = _zoomed is not null && _zoomed != pane ? PaneById(_zoomed) : null;
+        var arriving = pane is not null && pane != _zoomed ? PaneById(pane) : null;
+        var wasZoomed = _zoomed is not null;
+        // Where each moving pane is drawn now, before any motion under way is cut short: its slot, or the card it was on.
+        var leavingFrom = leaving is null ? default : Slot(leaving);
+        var arrivingFrom = arriving is null ? default : Slot(arriving);
+        if (leaving is not null || arriving is not null) FinishZoomMotion();
+        if (leaving is not null) Canvas.SetZIndex(leaving, 0);
         _zoomed = pane;
         _zoomCard = card;
-        if (pane is not null && Panes.FirstOrDefault(item => item.Descriptor.Id == pane) is { } zoomed) Canvas.SetZIndex(zoomed, ZoomedLayer);
-        _dim.Visibility = pane is null ? Visibility.Collapsed : Visibility.Visible;
+        if (pane is not null && PaneById(pane) is { } zoomed) Canvas.SetZIndex(zoomed, ZoomedLayer);
+        var moves = animate && ZoomMotion > TimeSpan.Zero && (leaving is not null || arriving is not null);
+        // Zooming out, the dim stays to fade, and no longer takes a press.
+        _dim.Visibility = pane is not null || (moves && wasZoomed) ? Visibility.Visible : Visibility.Collapsed;
+        _dim.IsHitTestVisible = pane is not null;
         ForgetPlacements();
         InvalidateMeasure();
+        if (!moves) return Task.CompletedTask;
+
+        var motion = new Storyboard();
+        if (arriving is not null) Flip(motion, arriving, arrivingFrom, card);
+        if (leaving is not null && _arrangement?.Panes.FirstOrDefault(placement => placement.Pane == leaving.Descriptor.Id) is { } home)
+        {
+            // Above the dim until it is back in its place, under a pane taking the zoom from it.
+            Canvas.SetZIndex(leaving, LeavingLayer);
+            Flip(motion, leaving, leavingFrom, home.Rect);
+        }
+        if (wasZoomed != (pane is not null))
+        {
+            var fade = new DoubleAnimation { From = wasZoomed ? 1 : 0, To = wasZoomed ? 0 : 1, Duration = new Duration(ZoomMotion), EasingFunction = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 5 } };
+            Storyboard.SetTarget(fade, _dim);
+            Storyboard.SetTargetProperty(fade, "Opacity");
+            motion.Children.Add(fade);
+        }
+        if (motion.Children.Count == 0) { FinishZoomMotion(); return Task.CompletedTask; }
+        var moved = _zoomMoved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _zoomMotion = motion;
+        motion.Completed += (_, _) => { if (ReferenceEquals(_zoomMotion, motion)) FinishZoomMotion(); };
+        motion.Begin();
+        _ = FinishStalledMotionAsync(motion);
+        return moved.Task;
+    }
+
+    private SessionPane? PaneById(string id) => Panes.FirstOrDefault(item => item.Descriptor.Id == id);
+
+    /// <summary>Where the pane was last laid out, in the canvas's pixels.</summary>
+    private static PaneRect Slot(FrameworkElement element)
+    {
+        var slot = Microsoft.UI.Xaml.Controls.Primitives.LayoutInformation.GetLayoutSlot(element);
+        return new PaneRect(slot.X, slot.Y, slot.Width, slot.Height);
+    }
+
+    /// <summary>
+    /// The pane laid out at <paramref name="to"/> drawn at <paramref name="from"/> by a scale and a shift from its top-left corner,
+    /// both easing to nothing in the panel's curve, so it is seen to grow or shrink from one place to the other.
+    /// </summary>
+    private void Flip(Storyboard motion, SessionPane pane, PaneRect from, PaneRect to)
+    {
+        if (from.Width <= 0 || from.Height <= 0 || to.Width <= 0 || to.Height <= 0 || from == to) return;
+        var transform = new CompositeTransform { ScaleX = from.Width / to.Width, ScaleY = from.Height / to.Height, TranslateX = from.X - to.X, TranslateY = from.Y - to.Y };
+        pane.RenderTransformOrigin = new Point(0, 0);
+        pane.RenderTransform = transform;
+        _moving.Add(pane);
+        foreach (var (property, value) in new[] { ("ScaleX", 1.0), ("ScaleY", 1.0), ("TranslateX", 0.0), ("TranslateY", 0.0) })
+        {
+            var animation = new DoubleAnimation { To = value, Duration = new Duration(ZoomMotion), EasingFunction = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 5 } };
+            Storyboard.SetTarget(animation, transform);
+            Storyboard.SetTargetProperty(animation, property);
+            motion.Children.Add(animation);
+        }
+    }
+
+    /// <summary>The compositor does not tick while the window is hidden; a motion that never completes must not leave a pane drawn part-way.</summary>
+    private async Task FinishStalledMotionAsync(Storyboard motion)
+    {
+        await Task.Delay(ZoomMotion + TimeSpan.FromSeconds(1));
+        if (ReferenceEquals(_zoomMotion, motion)) FinishZoomMotion();
+    }
+
+    /// <summary>Ends the zoom's motion where it was going: every moved pane drawn where it is laid out, on its own layer, and the dim at rest.</summary>
+    private void FinishZoomMotion()
+    {
+        if (_zoomMotion is { } motion) { _zoomMotion = null; motion.Stop(); }
+        foreach (var pane in _moving)
+        {
+            pane.RenderTransform = null;
+            if (pane.Descriptor.Id != _zoomed) Canvas.SetZIndex(pane, 0);
+        }
+        _moving.Clear();
+        _dim.Opacity = 1;
+        if (_zoomed is null && _dim.Visibility == Visibility.Visible)
+        {
+            _dim.Visibility = Visibility.Collapsed;
+            ForgetPlacements();
+            InvalidateMeasure();
+        }
+        _zoomMoved?.TrySetResult();
+        _zoomMoved = null;
     }
 
     /// <summary>The panes shown, in the tree's order.</summary>
@@ -119,6 +225,8 @@ internal sealed class PaneCanvas : Panel
     /// </summary>
     internal void Show(PaneNode tree, IReadOnlyList<SessionPane> panes)
     {
+        // A new tiling ends a zoom's motion where it was going.
+        FinishZoomMotion();
         Tree = tree;
         foreach (var stale in Children.Where(child => child is PaneSplitter || (child is SessionPane pane && !panes.Contains(pane))).ToArray()) Children.Remove(stale);
         Children.Remove(_dropMark);
@@ -144,6 +252,7 @@ internal sealed class PaneCanvas : Panel
     /// <summary>Takes a pane out of the children without retiling, for a pane on its way to another tab's canvas; a pane may have one parent at a time.</summary>
     internal void Detach(SessionPane pane)
     {
+        FinishZoomMotion();
         Children.Remove(pane);
         Canvas.SetZIndex(pane, 0);
         if (pane.Descriptor.Id == _zoomed) { _zoomed = null; _dim.Visibility = Visibility.Collapsed; }

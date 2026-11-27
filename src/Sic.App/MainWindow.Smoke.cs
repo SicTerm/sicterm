@@ -1144,7 +1144,7 @@ internal sealed partial class MainWindow
             SetPaneZoom(PaneZoom.Window, PaneZoom.DefaultPercent);
             var tiledSize = await WaitForSizeAsync(terminal, size => size.Columns < single.Columns);
             var zoomTaken = await terminal.PressKeyAsync("Z", ctrl: true, shift: true);
-            await EventuallyAsync(() => shellHost.Content.Zoomed == pane.Descriptor.Id);
+            await EventuallyAsync(() => shellHost.Content.Zoomed == pane.Descriptor.Id && !shellHost.Content.ZoomMoving);
             if (!zoomTaken || shellHost.Content.Zoomed != pane.Descriptor.Id || !shellHost.Content.Dimmed || shellHost.Saved.Zoomed != pane.Descriptor.Id || !pane.IsZoomed || zoomB.IsZoomed)
                 zoomMisses.Add($"Ctrl+Shift+Z in the terminal did not zoom the pane (taken={zoomTaken} zoomed={shellHost.Content.Zoomed} dimmed={shellHost.Content.Dimmed})");
             shellHost.Content.UpdateLayout();
@@ -1162,10 +1162,11 @@ internal sealed partial class MainWindow
             if (!SavedLayout(() => new WorkspaceLayout()).Tabs.Any(tab => tab.Id == shellHost.Saved.Id && tab.Zoomed == pane.Descriptor.Id)) zoomMisses.Add("the zoom was not saved with the tab");
             await CaptureWindowAsync(Path.Combine(data, "zoom-window.png"));
             var zoomMoveTaken = await terminal.PressKeyAsync("ArrowRight", alt: true);
-            await EventuallyAsync(() => shellHost.Content.Zoomed == zoomB.Descriptor.Id);
+            await EventuallyAsync(() => shellHost.Content.Zoomed == zoomB.Descriptor.Id && !shellHost.Content.ZoomMoving);
             if (!zoomMoveTaken || shellHost.Content.Zoomed != zoomB.Descriptor.Id || _activePane != zoomB || pane.IsZoomed || !zoomB.IsZoomed || Canvas.GetZIndex(pane) != 0)
                 zoomMisses.Add($"Alt+Right did not move the zoom to the pane on the right (taken={zoomMoveTaken} zoomed={shellHost.Content.Zoomed})");
             ZoomPressed(shellHost, pane.Descriptor.Id);
+            await EventuallyAsync(() => !shellHost.Content.ZoomMoving);
             if (shellHost.Content.Zoomed != pane.Descriptor.Id || _activePane != pane) zoomMisses.Add("a press on the dim over a pane did not give it the zoom");
             SetPaneZoom(PaneZoom.Area, 60);
             shellHost.Content.UpdateLayout();
@@ -1191,7 +1192,7 @@ internal sealed partial class MainWindow
             await Task.Delay(300);
             await CaptureWindowAsync(Path.Combine(data, "zoom-screen.png"));
             var unzoomTaken = await terminal.PressKeyAsync("Z", ctrl: true, shift: true);
-            await EventuallyAsync(() => shellHost.Content.Zoomed is null);
+            await EventuallyAsync(() => shellHost.Content.Zoomed is null && !shellHost.Content.ZoomMoving && _zoomGrowth is null);
             var unzoomedSize = await WaitForSizeAsync(terminal, size => size == tiledSize);
             if (!unzoomTaken || shellHost.Content.Zoomed is not null || shellHost.Content.Dimmed || shellHost.Saved.Zoomed is not null || pane.IsZoomed || unzoomedSize != tiledSize || !PanesTiled(shellHost) || Canvas.GetZIndex(_work) != 0)
                 zoomMisses.Add($"Ctrl+Shift+Z again did not put the pane back at {tiledSize.Columns}×{tiledSize.Rows} (taken={unzoomTaken} zoomed={shellHost.Content.Zoomed} size={unzoomedSize.Columns}×{unzoomedSize.Rows})");
@@ -1200,6 +1201,30 @@ internal sealed partial class MainWindow
             SetZoomed(shellHost, pane);
             var zoomD = AddPane(shellHost, ZoomPane(4), zoomC, PaneSplit.Rows);
             if (shellHost.Content.Zoomed is not null || shellHost.Saved.Zoomed is not null || Canvas.GetZIndex(_work) != 0) zoomMisses.Add("a pane joining the tab did not end the zoom");
+            // The motion, slowed to be seen, with Menu Animation on: part-way the pane is drawn by a transform from its place to the
+            // card and the dim is fading in; at the end nothing is drawn off its place. Zooming out the same way, the terminal area
+            // stays over the sidebar until the card is back. A capture part-way shows whether the terminal's page follows the transform.
+            if (PanelSlides)
+            {
+                PaneCanvas.ZoomMotion = TimeSpan.FromSeconds(2);
+                try
+                {
+                    SetZoomed(shellHost, pane);
+                    await Task.Delay(500);
+                    var motionPartWay = shellHost.Content.ZoomMoving && pane.RenderTransform is Microsoft.UI.Xaml.Media.CompositeTransform && shellHost.Content.Dimmed;
+                    await CaptureWindowAsync(Path.Combine(data, "zoom-motion.png"));
+                    await EventuallyAsync(() => !shellHost.Content.ZoomMoving);
+                    var motionDone = !shellHost.Content.ZoomMoving && pane.RenderTransform is not Microsoft.UI.Xaml.Media.CompositeTransform && shellHost.Content.Zoomed == pane.Descriptor.Id;
+                    SetZoomed(shellHost, null);
+                    await Task.Delay(500);
+                    var outPartWay = shellHost.Content.ZoomMoving && pane.RenderTransform is Microsoft.UI.Xaml.Media.CompositeTransform && shellHost.Content.Dimmed && Canvas.GetZIndex(_work) == LiftedWork;
+                    await EventuallyAsync(() => !shellHost.Content.ZoomMoving);
+                    var outDone = pane.RenderTransform is not Microsoft.UI.Xaml.Media.CompositeTransform && !shellHost.Content.Dimmed && Canvas.GetZIndex(_work) == 0 && Canvas.GetZIndex(pane) == 0 && PanesTiled(shellHost);
+                    if (!motionPartWay || !motionDone || !outPartWay || !outDone)
+                        zoomMisses.Add($"the zoom's motion was wrong: in part-way={motionPartWay} done={motionDone}, out part-way={outPartWay} done={outDone}");
+                }
+                finally { PaneCanvas.ZoomMotion = TimeSpan.FromMilliseconds(180); }
+            }
             foreach (var extra in new[] { zoomB, zoomC, zoomD }) await ClosePaneAsync(shellHost, extra);
             SetPaneZoom(PaneZoom.Default, PaneZoom.DefaultPercent);
             if (zoomMisses.Count > 0 || shellHost.Panes.Count != 1 || !pane.IsRunning) throw new InvalidOperationException("The zoomed pane was wrong: " + string.Join("; ", zoomMisses) + ".");
