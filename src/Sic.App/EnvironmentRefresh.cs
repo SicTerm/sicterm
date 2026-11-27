@@ -27,6 +27,26 @@ internal static class EnvironmentRefresh
             if (changes.Count > 0) Diagnostics.Log("environment from the registry: " + string.Join("; ", changes.Select(change => Describe(change.Key, change.Value, path))));
         }
         catch (Exception exception) when (exception is not OutOfMemoryException) { Diagnostics.Log("environment from the registry: " + exception.Message); }
+        AddClaudeFolder();
+    }
+
+    /// <summary>
+    /// Claude Code's own installer puts claude.exe under the profile's .local\bin and leaves that folder off Path (2.1.332; a
+    /// Windows Sandbox run, November 27, 2026), so a fresh install was not found. Where the program is there and Path does not
+    /// name its folder, SicTerm's own Path gets it, last: detection and every tab then find claude, and nothing outside SicTerm
+    /// changes (the account's Path is the row's Add to PATH, <see cref="UserPath"/>).
+    /// </summary>
+    private static void AddClaudeFolder()
+    {
+        try
+        {
+            var folder = SetupCatalog.ClaudeFolder(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+            var path = Environment.GetEnvironmentVariable("Path");
+            if (!File.Exists(Path.Combine(folder, "claude.exe")) || PathList.Append(path, folder) is not { } added) return;
+            Environment.SetEnvironmentVariable("Path", added);
+            Diagnostics.Log("environment: Path gained " + folder + " for SicTerm alone (Claude Code's installer left it off)");
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException) { Diagnostics.Log("environment, Claude Code's folder: " + exception.Message); }
     }
 
     private static string Describe(string name, string? value, string? path)

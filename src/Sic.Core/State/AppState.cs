@@ -240,8 +240,8 @@ public sealed class AppPreferences
     /// notice never comes back at launch, and one left open shows again at the next.
     /// </summary>
     public Shell.SetupGap SetupClosedAtLaunch { get; set; }
-    /// <summary>The setup notice's gaps closed in Settings → Agents, where it stays until closed there.</summary>
-    public Shell.SetupGap SetupClosedInSettings { get; set; }
+    /// <summary>The gaps the Get set up panel showed on the home screen when its X closed it there: it comes back only for a gap that was not among them.</summary>
+    public Shell.SetupGap SetupClosedOnHome { get; set; }
     /// <summary>
     /// Whether the status bar shows the plan limits of Claude and Codex while one of their panes runs (docs/decisions/usage-limits.md),
     /// and Claude Code is started with SIC as its status line command to report them. On by default.

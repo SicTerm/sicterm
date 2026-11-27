@@ -236,17 +236,17 @@ internal sealed partial class MainWindow
     /// below that pane. The panel stays as it is: with tabs spread over workspaces it is how the rest are found, so a New session
     /// here no longer closes it (Chris, November 9, 2026).
     /// </summary>
-    private async Task ShowNewSessionAsync(string? folder = null, SplitTarget? target = null)
+    private async Task ShowNewSessionAsync(string? folder = null, SplitTarget? target = null, string? agent = null)
     {
         try
         {
-            await ShowNewSessionDialogAsync(folder, target);
+            await ShowNewSessionDialogAsync(folder, target, agent);
         }
         catch (Exception exception) { ShowError(exception.Message); }
         finally { _newSessionDialog = null; _newSessionFolder = null; _newSessionTiles = null; }
     }
 
-    private async Task ShowNewSessionDialogAsync(string? folder, SplitTarget? target)
+    private async Task ShowNewSessionDialogAsync(string? folder, SplitTarget? target, string? agent)
     {
         var content = new StackPanel { Spacing = 14, MinWidth = 460 };
         content.Children.Add(_theme.Eyebrow("Agent"));
@@ -260,7 +260,9 @@ internal sealed partial class MainWindow
             var label = _theme.BodyText(name, 12); label.HorizontalAlignment = HorizontalAlignment.Center;
             stack.Children.Add(label);
             if (!detected) { var missing = _theme.Tertiary("not detected"); missing.FontSize = 10; missing.Foreground = _theme.Warning; missing.HorizontalAlignment = HorizontalAlignment.Center; stack.Children.Add(missing); }
-            var button = new ToggleButton { Content = stack, Tag = id, Width = 104, Height = 84, Padding = new Thickness(4), IsChecked = !found && id == _preferences.PreferredAgent };
+            var button = new ToggleButton { Content = stack, Tag = id, Width = 104, Height = 84, Padding = new Thickness(4), IsChecked = !found && id == (agent ?? _preferences.PreferredAgent) };
+            // The tile had no name of its own for a screen reader or UI Automation, only its picture and text inside.
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, detected ? name : name + ", not detected");
             foreach (var key in new[] { "ToggleButtonBackgroundChecked", "ToggleButtonBackgroundCheckedPointerOver", "ToggleButtonBackgroundCheckedPressed" }) Theme.Override(button.Resources, key, _theme.AccentSoft);
             foreach (var key in new[] { "ToggleButtonBorderBrushChecked", "ToggleButtonBorderBrushCheckedPointerOver", "ToggleButtonBorderBrushCheckedPressed" }) Theme.Override(button.Resources, key, _theme.Accent);
             foreach (var key in new[] { "ToggleButtonForegroundChecked", "ToggleButtonForegroundCheckedPointerOver", "ToggleButtonForegroundCheckedPressed" }) Theme.Override(button.Resources, key, _theme.Text);
@@ -273,6 +275,18 @@ internal sealed partial class MainWindow
         AddChoice("shell", "PowerShell", true);
         if (group.All(item => item.IsChecked != true)) group[0].IsChecked = true;
         content.Children.Add(tiles);
+        // No agent on this PC: the dialog says so and leads to Get set up (MainWindow.Setup.cs). It had shown PowerShell alone under
+        // "Agent", with nothing to say agents exist (a Windows Sandbox run, November 27, 2026).
+        var setUp = false;
+        if (SetupGaps.HasFlag(Sic.Core.Shell.SetupGap.Agent))
+        {
+            var none = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+            none.Children.Add(_theme.Caption(Sic.Core.Shell.SetupAdvisor.For(Sic.Core.Shell.SetupGap.Agent)!.Message));
+            var link = new HyperlinkButton { Content = "Set up", Padding = new Thickness(0), MinHeight = 0, VerticalAlignment = VerticalAlignment.Center };
+            link.Click += (_, _) => { setUp = true; _newSessionDialog?.Hide(); };
+            none.Children.Add(link);
+            content.Children.Add(none);
+        }
 
         content.Children.Add(_theme.Eyebrow("Working folder"));
         var folderRow = new Grid { ColumnSpacing = 8 };
@@ -338,7 +352,7 @@ internal sealed partial class MainWindow
             foreach (var definition in _preferences.Agents.Where(agent => agent.IsOn && group.All(item => (string)item.Tag != agent.Id)))
                 AddChoice(definition.Id, definition.Name, _available.GetValueOrDefault(definition.Id), found: true);
         }
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) { if (setUp) OpenSetup(); return; }
         // A folder outside every listed one may join the list first, or the session goes to Scratch (OfferFolderAsync); a split stays in its tab.
         if (target is null && !await OfferFolderAsync(directory.Text)) return;
         var id = (string)group.First(item => item.IsChecked == true).Tag;

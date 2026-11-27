@@ -257,6 +257,7 @@ internal sealed partial class MainWindow : Window
                 ResumeRestoredSessions();
                 // A first run: the film plays over the tab area while detection and the refresh run; its card waits for their facts.
                 WatchSetupNotice();
+                if (_options.SetupGaps is { } standIn) SetupGapsOverride = standIn;
                 if (WelcomeDue) _ = ShowWelcomeAsync();
                 await Task.WhenAll(DetectToolsAsync(), RefreshHistoryAsync());
                 SendWelcomeContext();
@@ -913,6 +914,7 @@ internal sealed partial class MainWindow : Window
         var stack = new StackPanel { Spacing = 8, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, MaxWidth = 480 };
         var mark = SicMark.Create(96, () => _theme.Base.Color); mark.Margin = new Thickness(0, 0, 0, 8);
         stack.Children.Add(mark);
+        _homeMark = mark; _homeStack = stack;
         var name = SicMark.Wordmark(_theme, 40); name.HorizontalAlignment = HorizontalAlignment.Center;
         stack.Children.Add(name);
         // The tagline About carries, on two lines under the name (Chris, October 18, 2026).
@@ -924,6 +926,10 @@ internal sealed partial class MainWindow : Window
                 FontWeight = new Windows.UI.Text.FontWeight { Weight = 600 }, HorizontalAlignment = HorizontalAlignment.Center
             });
         stack.Children.Add(tagline);
+        _homeTagline = tagline;
+        // Get set up, while the PC lacks PowerShell 7 or an agent (MainWindow.Setup.cs): the panel takes the mark's and the tagline's room.
+        _setupHomeSlot = new Border();
+        stack.Children.Add(_setupHomeSlot);
         // No line of explanation under the name: the buttons say what to do (Chris, October 19, 2026; rotating tips may come later).
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 12, 0, 0) };
         var create = _theme.PrimaryButton("New session", "Ctrl+Shift+T");
@@ -932,7 +938,8 @@ internal sealed partial class MainWindow : Window
         sessions.Click += (_, _) => OpenPanel("sessions");
         actions.Children.Add(create); actions.Children.Add(sessions);
         stack.Children.Add(actions);
-        host.Children.Add(stack);
+        // The panel can be taller than a small window: the column scrolls then, and is centred otherwise.
+        host.Children.Add(new ScrollViewer { Content = stack, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Padding = new Thickness(24, 12, 24, 12) });
         return host;
     }
 

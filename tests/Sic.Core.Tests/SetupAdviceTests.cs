@@ -38,30 +38,69 @@ public sealed class SetupAdviceTests
         => Assert.Equal(expected, SetupAdvisor.Open(gaps, closed));
 
     [Fact]
-    public void For_SaysEachGapWithItsInstallPages()
+    public void For_SaysEachGapInOneSentenceOrTwo()
     {
         Assert.Null(SetupAdvisor.For(SetupGap.None));
-        var powerShell = SetupAdvisor.For(SetupGap.PowerShell)!;
-        Assert.Equal("PowerShell 7 was not found, so SicTerm runs in Windows PowerShell 5.1. SicTerm works in 5.1, but PowerShell 7 or later is recommended.", powerShell.Message);
-        Assert.Equal(["PowerShell 7"], powerShell.Links.Select(link => link.Name));
-        var agent = SetupAdvisor.For(SetupGap.Agent)!;
-        Assert.Equal("No coding agent was found. SicTerm works as a terminal on its own, but it is built around coding agents, and installing one is recommended.", agent.Message);
-        Assert.Equal(["Claude Code", "Codex", "OpenCode", "Hermes"], agent.Links.Select(link => link.Name));
-        var both = SetupAdvisor.For(SetupGap.Both)!;
-        Assert.Equal("PowerShell 7 and a coding agent were not found. SicTerm works as a terminal in Windows PowerShell 5.1. PowerShell 7 and a coding agent are recommended.", both.Message);
-        Assert.Equal(["PowerShell 7", "Claude Code", "Codex", "OpenCode", "Hermes"], both.Links.Select(link => link.Name));
-        // Each link is a vendor's own page, over HTTPS; none is a Store page.
-        Assert.All(both.Links, link => Assert.Equal(Uri.UriSchemeHttps, link.Uri.Scheme));
-        Assert.DoesNotContain(both.Links, link => link.Uri.Host.Contains("microsoft.com", StringComparison.Ordinal) && link.Uri.Host.StartsWith("apps.", StringComparison.Ordinal));
+        Assert.Equal("PowerShell 7 was not found. SicTerm is running in Windows PowerShell 5.1, where some coding tools and commands fail.", SetupAdvisor.For(SetupGap.PowerShell)!.Message);
+        Assert.Equal("No coding agent was found.", SetupAdvisor.For(SetupGap.Agent)!.Message);
+        Assert.Equal("PowerShell 7 and a coding agent were not found.", SetupAdvisor.For(SetupGap.Both)!.Message);
     }
 
     [Fact]
     public void ClosedGaps_AreKeptInTheSettingsFile()
     {
-        var preferences = new AppPreferences { SetupClosedAtLaunch = SetupGap.Both, SetupClosedInSettings = SetupGap.Agent };
+        var preferences = new AppPreferences { SetupClosedAtLaunch = SetupGap.Both, SetupClosedOnHome = SetupGap.Agent };
         var read = JsonSerializer.Deserialize<AppPreferences>(JsonSerializer.Serialize(preferences))!;
         Assert.Equal(SetupGap.Both, read.SetupClosedAtLaunch);
-        Assert.Equal(SetupGap.Agent, read.SetupClosedInSettings);
+        Assert.Equal(SetupGap.Agent, read.SetupClosedOnHome);
         Assert.Equal(SetupGap.None, new AppPreferences().SetupClosedAtLaunch);
+    }
+
+    [Fact]
+    public void Items_ArePowerShell7ThenTheFourAgentsEachWithItsVendorsPage()
+    {
+        Assert.Equal(["PowerShell 7", "Claude Code", "Codex", "OpenCode", "Hermes"], SetupCatalog.Items.Select(item => item.Name));
+        Assert.Equal(["powershell", "claude", "codex", "opencode", "hermes"], SetupCatalog.Items.Select(item => item.Id));
+        // Each page is a vendor's own, over HTTPS; none is a Store page.
+        Assert.All(SetupCatalog.Items, item => Assert.Equal(Uri.UriSchemeHttps, item.Page.Scheme));
+        Assert.DoesNotContain(SetupCatalog.Items, item => item.Page.Host.StartsWith("apps.", StringComparison.Ordinal));
+        // The wording states facts: it never addresses the reader.
+        Assert.All(SetupCatalog.Items, item => Assert.DoesNotMatch(@"\b[Yy]ou(r)?\b", item.Line + " " + item.Detail));
+        Assert.DoesNotMatch(@"\b[Yy]ou(r)?\b", SetupCatalog.Intro + SetupCatalog.Footnote + SetupCatalog.ClaudeOffPath);
+    }
+
+    [Theory]
+    [InlineData("powershell", true, false, "winget install --id Microsoft.PowerShell --source winget")]
+    // No winget (Windows Sandbox, Server): the row offers the install page.
+    [InlineData("powershell", false, true, null)]
+    [InlineData("claude", false, false, "irm https://claude.ai/install.ps1 | iex")]
+    [InlineData("codex", false, false, "powershell -ExecutionPolicy ByPass -c \"irm https://chatgpt.com/codex/install.ps1 | iex\"")]
+    [InlineData("hermes", false, false, "iex (irm https://hermes-agent.nousresearch.com/install.ps1)")]
+    // OpenCode has no Windows installer: npm where Node.js is installed, by its .cmd, which a Restricted policy does not refuse.
+    [InlineData("opencode", false, true, "npm.cmd install -g --allow-scripts=@opencode/cli @opencode/cli@latest")]
+    [InlineData("opencode", true, false, null)]
+    [InlineData("something else", true, true, null)]
+    public void Command_IsTheVendorsOwnWhereThisPcCanRunOne(string id, bool winget, bool npm, string? expected)
+        => Assert.Equal(expected, SetupCatalog.Command(id, winget, npm));
+
+    [Fact]
+    public void Command_IsOneLineThatNeverRunsItself()
+    {
+        foreach (var item in SetupCatalog.Items)
+        {
+            var command = SetupCatalog.Command(item.Id, winget: true, npm: true)!;
+            Assert.DoesNotContain('\n', command);
+            Assert.DoesNotContain('\r', command);
+            Assert.Equal(command.Trim(), command);
+        }
+    }
+
+    [Fact]
+    public void KnownProgram_IsWhereTheQuietInstallersPutTheirs()
+    {
+        Assert.Equal(@"C:\Users\someone\.local\bin\claude.exe", SetupCatalog.KnownProgram("claude", @"C:\Users\someone", @"C:\Users\someone\AppData\Local"));
+        Assert.Equal(@"C:\Users\someone\AppData\Local\Programs\OpenAI\Codex\bin\codex.exe", SetupCatalog.KnownProgram("codex", @"C:\Users\someone", @"C:\Users\someone\AppData\Local"));
+        Assert.Null(SetupCatalog.KnownProgram("hermes", @"C:\Users\someone", @"C:\Users\someone\AppData\Local"));
+        Assert.Equal(@"C:\Users\someone\.local\bin", SetupCatalog.ClaudeFolder(@"C:\Users\someone"));
     }
 }

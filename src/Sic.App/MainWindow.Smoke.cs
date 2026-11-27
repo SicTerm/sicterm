@@ -333,7 +333,7 @@ internal sealed partial class MainWindow
                 && _taskbarIconSize == ShellIcons.TaskbarButtonSize() && _taskbarIcon != 0
                 && _titleBarIconSize == ShellIcons.SmallIconSize(WinRT.Interop.WindowNative.GetWindowHandle(this)) && _titleBarIcon != 0
                 && railFrame > 0 && (railFrame == railPixels || !icoFrames.Contains(railPixels)) && railTone
-                && _welcome.Children[0] is StackPanel welcome && FullMark(welcome.Children[0]) && SicMark.LightArt(welcome.Children[0]) == SicMark.IsLightSurface(_theme.Base.Color)
+                && _homeStack is { } welcome && FullMark(welcome.Children[0]) && SicMark.LightArt(welcome.Children[0]) == SicMark.IsLightSurface(_theme.Base.Color)
                 && _railItems["resume"].Button.Content is Grid resumeContent && resumeContent.Children.OfType<Viewbox>().Any() && !resumeContent.Children.OfType<FontIcon>().Any();
             if (!brandMark) throw new InvalidOperationException($"The mark, the tray, taskbar or title-bar icon, or the Resume all glyph was not in place: ico frames [{string.Join(", ", icoFrames)}], light-taskbar ico frames [{string.Join(", ", lightIcoFrames)}], tray icon {_tray?.IconSize ?? 0} px, taskbar icon {_taskbarIconSize} px, title-bar icon {_titleBarIconSize} px, rail mark frame {railFrame} px for {railPixels} px on screen, rail mark in its rail's set {railTone}.");
 
@@ -2586,54 +2586,87 @@ internal sealed partial class MainWindow
             var switchedOn = SavedSwitch("opencode") == true && _agentRows["opencode"].Identity.Opacity == 1;
             if (tabPages.Any(page => page.EndsWith(":False", StringComparison.Ordinal)) || !agentsPageHasEveryAgent || !aboutPageHasUpdates || !switchedOff || !switchedOn)
                 throw new InvalidOperationException($"The Settings tabs did not each show their page: {string.Join(", ", tabPages)} agents={agentsPageHasEveryAgent} about={aboutPageHasUpdates} switch off={switchedOff} on={switchedOn}.");
-            // The setup notice (MainWindow.Setup.cs; November 27, 2026), on gaps this run stands in for, since the smoke's PC has
-            // PowerShell 7 and the fixture agents: at launch the combined message with its five links, and the same in Settings →
-            // Agents; a gap that goes leaves both; the launch X closes its gaps at launch only, the Settings X in Settings only,
-            // each gap apart; with nothing missing the notice goes without closing anything; and the next notice drops the links.
-            var setupClosedBefore = (Launch: _preferences.SetupClosedAtLaunch, Settings: _preferences.SetupClosedInSettings);
+            // Getting set up (MainWindow.Setup.cs; November 27, 2026), on gaps this run stands in for, since the smoke's PC has
+            // PowerShell 7 and the fixture agents. The launch notice is one sentence with a Set up button and nothing under it;
+            // Settings → Agents lists a row for each thing missing, with the vendor's command and Install, Copy and its page; a gap
+            // that goes leaves both; the notice's X closes its gaps at launch only, each apart; another notice only borrows its
+            // place; Claude Code under .local\bin with its folder off Path keeps a row offering Add to PATH, which adds the one
+            // folder to the end of a Path value and leaves the rest as written (on a scratch key here, never the account's own).
+            var setupClosedBefore = (Launch: _preferences.SetupClosedAtLaunch, Home: _preferences.SetupClosedOnHome);
             _notice.IsOpen = false; LastNotice = null;
-            _preferences.SetupClosedAtLaunch = _preferences.SetupClosedInSettings = SetupGap.None;
+            _preferences.SetupClosedAtLaunch = _preferences.SetupClosedOnHome = SetupGap.None;
             bool setupNotice;
             string setupImage = Path.Combine(data, "setup-notice-native.png");
+            var setupScratchKey = @"Software\SicTermSmoke-" + Guid.NewGuid().ToString("N");
             try
             {
                 string Said(SetupGap gaps) => SetupAdvisor.For(gaps)!.Message;
+                if (_open.Count == 0) throw new InvalidOperationException("The setup checks expect a tab open: with none, the home screen's panel stands in for the notice.");
+                ClaudeOffPathOverride = false;
                 SetupGapsOverride = SetupGap.Both;
                 ShowSetupNotice();
-                var setupBoth = SetupNoticeShown && _notice.Message == Said(SetupGap.Both) && _notice.Title == ""
-                    && SetupLinkNames(_notice.Content).SequenceEqual(["PowerShell 7", "Claude Code", "Codex", "OpenCode", "Hermes"]);
+                var setupBoth = SetupNoticeShown && _notice.Message == Said(SetupGap.Both) && _notice.Title == "" && _notice.Content is null
+                    && _notice.ActionButton is Button { Content: "Set up" };
                 ShowSettingsTab(SettingsTabs.Agents);
                 RefreshSetupAdvice();
-                var setupBarBoth = await EventuallyAsync(() => SetupBar is { IsOpen: true, ActualHeight: > 0 } bar && bar.Message == Said(SetupGap.Both) && SetupLinkNames(bar.Content).Count == 5);
-                var setupBar = SetupBar!;
+                if (SetupSection is { } setupSection) setupSection.IsExpanded = true;
+                var setupRowsBoth = await EventuallyAsync(() => SetupSection is { Visibility: Visibility.Visible, ActualHeight: > 0 }
+                    && SetupRowFacts(inSettings: true) is { Count: 5 } rows && rows.All(row => row.Visible && row.Status == "Not found")
+                    && rows.Select(row => row.Id).SequenceEqual(["powershell", "claude", "codex", "opencode", "hermes"])
+                    && rows[1].Command == "irm https://claude.ai/install.ps1 | iex"
+                    && rows[1].Buttons.Contains("Install") && rows[1].Buttons.Contains("Copy") && rows[1].Buttons.Contains("Install page")
+                    && !rows[1].Buttons.Contains("Start a session") && !rows[1].Buttons.Contains("Add to PATH"));
+                // The home screen's panel is built for the same gaps, every row in it, though a tab covers it here.
+                var setupHome = SetupRowFacts(inSettings: false) is { Count: 5 } homeRows && homeRows.All(row => row.Visible) && !SetupHomeShown;
                 await Task.Delay(150);
                 await CaptureAsync(_root, setupImage);
-                // An agent found: both places say PowerShell alone.
+                // An agent found: the notice says PowerShell alone, and Settings keeps the rows of what is still missing.
                 SetupGapsOverride = SetupGap.PowerShell;
                 RefreshSetupAdvice();
-                var setupFollowed = SetupNoticeShown && _notice.Message == Said(SetupGap.PowerShell) && SetupLinkNames(_notice.Content).SequenceEqual(["PowerShell 7"])
-                    && setupBar.Message == Said(SetupGap.PowerShell);
-                // The launch X: not at launch again, still in Settings.
+                var followed = SetupRowFacts(inSettings: true);
+                var setupFollowed = SetupNoticeShown && _notice.Message == Said(SetupGap.PowerShell) && followed[0] is { Visible: true, Status: "Not found" }
+                    && followed.Skip(1).All(row => row.Visible == (_detection.GetValueOrDefault(row.Id)?.Available != true));
+                // The X at launch: PowerShell's gap is not shown at launch again, and is saved.
                 CloseSetupNotice();
                 _notice.IsOpen = false;
                 ShowSetupNotice();
-                var setupClosedAtLaunch = !_notice.IsOpen && _preferences.SetupClosedAtLaunch == SetupGap.PowerShell && setupBar.IsOpen
+                var setupClosedAtLaunch = !_notice.IsOpen && _preferences.SetupClosedAtLaunch == SetupGap.PowerShell
                     && SavedPreferences(() => new AppPreferences()).SetupClosedAtLaunch == SetupGap.PowerShell;
-                // The agent gap again: at launch alone, in Settings with PowerShell; then the Settings X closes both there.
+                // The agent's gap comes back: the launch notice says it alone.
                 SetupGapsOverride = SetupGap.Both;
                 ShowSetupNotice();
                 RefreshSetupAdvice();
-                var setupAgentAlone = SetupNoticeShown && _notice.Message == Said(SetupGap.Agent) && setupBar.IsOpen && setupBar.Message == Said(SetupGap.Both);
-                CloseSetupBar();
-                RefreshSetupAdvice();
-                var setupClosedInSettings = !setupBar.IsOpen && _preferences.SetupClosedInSettings == SetupGap.Both
-                    && SavedPreferences(() => new AppPreferences()).SetupClosedInSettings == SetupGap.Both;
-                // Nothing missing: the notice goes, and nothing more is closed at launch.
+                var setupAgentAlone = SetupNoticeShown && _notice.Message == Said(SetupGap.Agent);
+                // The home panel's X: closed for the gaps it showed, and saved.
+                CloseSetupPanel();
+                var setupClosedOnHome = _preferences.SetupClosedOnHome == SetupGap.Both && SavedPreferences(() => new AppPreferences()).SetupClosedOnHome == SetupGap.Both;
+                // Nothing missing: the notice goes, with nothing more closed, and Settings has no row for anything found.
                 SetupGapsOverride = SetupGap.None;
                 RefreshSetupAdvice();
-                var setupGoneWithGap = !_notice.IsOpen && _preferences.SetupClosedAtLaunch == SetupGap.PowerShell;
-                NotifyBriefly("Smoke", "A plain notice.");
-                var setupLinksDropped = _notice.Content is null;
+                var setupGoneWithGap = !_notice.IsOpen && _preferences.SetupClosedAtLaunch == SetupGap.PowerShell
+                    && SetupRowFacts(inSettings: true).Skip(1).All(row => row.Visible == (_detection.GetValueOrDefault(row.Id)?.Available != true));
+                // Claude Code where its installer put it, its folder off Path: its row stays, with Add to PATH beside Start a session.
+                var setupOffPath = true;
+                var setupAdded = true;
+                if (_detection.GetValueOrDefault("claude")?.Available == true)
+                {
+                    ClaudeOffPathOverride = true;
+                    RefreshSetupAdvice();
+                    var offPathRow = SetupRowFacts(inSettings: true)[1];
+                    setupOffPath = offPathRow is { Visible: true, Status: "Detected", Command: null } && offPathRow.Line == SetupCatalog.ClaudeOffPath
+                        && offPathRow.Buttons.SequenceEqual(["Start a session", "Add to PATH"]);
+                    using (var scratch = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(setupScratchKey))
+                        scratch.SetValue("Path", @"%USERPROFILE%\go\bin;C:\tools", Microsoft.Win32.RegistryValueKind.ExpandString);
+                    UserPathKeyOverride = setupScratchKey;
+                    AddClaudeToPath();
+                    var claudeFolder = SetupCatalog.ClaudeFolder(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+                    using (var scratch = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(setupScratchKey)!)
+                        setupAdded = scratch.GetValue("Path", null, Microsoft.Win32.RegistryValueOptions.DoNotExpandEnvironmentNames) as string == @"%USERPROFILE%\go\bin;C:\tools;" + claudeFolder
+                            && scratch.GetValueKind("Path") == Microsoft.Win32.RegistryValueKind.ExpandString && !UserPath.Add(claudeFolder, setupScratchKey)
+                            && _notice.IsOpen && _notice.Message == SetupCatalog.ClaudeOnPathNotice && _notice.Content is StackPanel { Children.Count: 1 };
+                    ClaudeOffPathOverride = false;
+                    RefreshSetupAdvice();
+                }
                 _notice.IsOpen = false; LastNotice = null;
                 // Another notice over the setup notice only borrows its place: when it goes, the setup notice comes back with the
                 // gaps still open, as after "Agent turned on" (a Windows Sandbox run, November 27, 2026).
@@ -2641,22 +2674,25 @@ internal sealed partial class MainWindow
                 ShowSetupNotice();
                 var setupBeforeOther = SetupNoticeShown && _notice.Message == Said(SetupGap.Agent);
                 NotifyBriefly("Smoke", "A notice over the setup notice.");
-                var setupPushedAside = !SetupNoticeShown && _notice.Message == "A notice over the setup notice.";
+                var setupPushedAside = !SetupNoticeShown && _notice.Message == "A notice over the setup notice." && _notice.ActionButton is null;
                 _notice.IsOpen = false;
-                var setupCameBack = setupBeforeOther && setupPushedAside && await EventuallyAsync(() => SetupNoticeShown && _notice.Message == Said(SetupGap.Agent) && SetupLinkNames(_notice.Content).Count == 4);
+                var setupCameBack = setupBeforeOther && setupPushedAside && await EventuallyAsync(() => SetupNoticeShown && _notice.Message == Said(SetupGap.Agent) && _notice.ActionButton is Button);
                 SetupGapsOverride = SetupGap.None;
                 RefreshSetupAdvice();
                 var setupGoneAgain = !_notice.IsOpen;
                 _notice.IsOpen = false; LastNotice = null;
-                setupNotice = setupBoth && setupBarBoth && setupFollowed && setupClosedAtLaunch && setupAgentAlone && setupClosedInSettings && setupGoneWithGap && setupLinksDropped && setupCameBack && setupGoneAgain;
-                if (!setupNotice) throw new InvalidOperationException($"The setup notice did not show, follow or close as laid out: both={setupBoth} bar={setupBarBoth} followed={setupFollowed} closedAtLaunch={setupClosedAtLaunch} agentAlone={setupAgentAlone} closedInSettings={setupClosedInSettings} gone={setupGoneWithGap} linksDropped={setupLinksDropped} before={setupBeforeOther} pushedAside={setupPushedAside} cameBack={setupCameBack} goneAgain={setupGoneAgain} message='{_notice.Message}' bar='{SetupBar?.Message}'.");
+                setupNotice = setupBoth && setupRowsBoth && setupHome && setupFollowed && setupClosedAtLaunch && setupAgentAlone && setupClosedOnHome && setupGoneWithGap && setupOffPath && setupAdded && setupCameBack && setupGoneAgain;
+                if (!setupNotice) throw new InvalidOperationException($"Getting set up did not show, follow or close as laid out: both={setupBoth} rows={setupRowsBoth} home={setupHome} followed={setupFollowed} closedAtLaunch={setupClosedAtLaunch} agentAlone={setupAgentAlone} closedOnHome={setupClosedOnHome} gone={setupGoneWithGap} offPath={setupOffPath} added={setupAdded} cameBack={setupCameBack} goneAgain={setupGoneAgain}.");
             }
             finally
             {
-                SetupGapsOverride = null;
-                (_preferences.SetupClosedAtLaunch, _preferences.SetupClosedInSettings) = setupClosedBefore;
+                SetupGapsOverride = null; ClaudeOffPathOverride = null; UserPathKeyOverride = null;
+                try { Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(setupScratchKey, throwOnMissingSubKey: false); }
+                catch (Exception exception) when (exception is UnauthorizedAccessException or IOException) { Diagnostics.Log("smoke scratch key: " + exception.Message); }
+                (_preferences.SetupClosedAtLaunch, _preferences.SetupClosedOnHome) = setupClosedBefore;
                 SavePreferences();
                 RefreshSetupAdvice();
+                _notice.IsOpen = false; LastNotice = null;
                 ShowSettingsTab(SettingsTabs.Appearance);
                 await Task.Delay(150);
             }
@@ -3300,7 +3336,7 @@ internal sealed partial class MainWindow
                 // The mark follows the theme too: the rail's draws the set for the rail's tone (the white >_ on a dark rail, SIC
                 // light's included, and the near-black one on a light rail) and the welcome page's the set for the page's.
                 var railMarkSet = SicMark.LightArt(_rail.Children.OfType<Border>().FirstOrDefault()?.Child) == SicMark.IsLightSurface(_theme.StripSurface)
-                    && _welcome.Children[0] is StackPanel welcomeStack && SicMark.LightArt(welcomeStack.Children[0]) == SicMark.IsLightSurface(_theme.Base.Color);
+                    && _homeStack is { } welcomeStack && SicMark.LightArt(welcomeStack.Children[0]) == SicMark.IsLightSurface(_theme.Base.Color);
                 if (!railMarkSet) _options.Trace("mark-set-mismatch " + theme.Id);
                 applied &= railMarkSet;
                 if (!applied || !fixedPalette) _options.Trace("theme-mismatch " + theme.Id + " renderer=" + appearance.Background);

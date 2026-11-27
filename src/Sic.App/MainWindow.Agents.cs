@@ -22,8 +22,8 @@ internal sealed partial class MainWindow
     private void BuildAgentsPage(StackPanel page)
     {
         page.Children.Add(Section("Agents"));
-        // No PowerShell 7 or no agent, until closed here (MainWindow.Setup.cs).
-        page.Children.Add(BuildSetupBar());
+        // Get set up: the rows of what this PC still lacks (MainWindow.Setup.cs).
+        page.Children.Add(BuildSetupSection());
         var top = new Grid { ColumnSpacing = 8 };
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
