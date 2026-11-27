@@ -66,7 +66,7 @@ public sealed class SetupAdviceTests
         Assert.DoesNotContain(SetupCatalog.Items, item => item.Page.Host.StartsWith("apps.", StringComparison.Ordinal));
         // The wording states facts: it never addresses the reader.
         Assert.All(SetupCatalog.Items, item => Assert.DoesNotMatch(@"\b[Yy]ou(r)?\b", item.Line + " " + item.Detail));
-        Assert.DoesNotMatch(@"\b[Yy]ou(r)?\b", SetupCatalog.Intro + SetupCatalog.Footnote + SetupCatalog.ClaudeOffPath);
+        Assert.DoesNotMatch(@"\b[Yy]ou(r)?\b", SetupCatalog.ShellIntro + SetupCatalog.AgentsIntro + SetupCatalog.Footnote + SetupCatalog.ClaudeOffPath);
     }
 
     [Theory]

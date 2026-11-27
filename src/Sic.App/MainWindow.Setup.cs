@@ -320,17 +320,33 @@ internal sealed partial class MainWindow
         };
     }
 
-    /// <summary>The rows of <paramref name="inSettings"/>'s place, a hairline between each two that show.</summary>
+    /// <summary>A group's label and sentence in one place, shown while any of its rows is.</summary>
+    private readonly List<(bool InSettings, bool Agents, FrameworkElement Header)> _setupHeaders = [];
+
+    /// <summary>
+    /// The rows of <paramref name="inSettings"/>'s place in two groups, PowerShell 7 and then the agents, each under its label
+    /// and sentence (<see cref="SetupCatalog.ShellLabel"/>), with a hairline between each two rows of a group that show.
+    /// </summary>
     private StackPanel BuildSetupRows(bool inSettings)
     {
         var rows = new StackPanel();
-        foreach (var item in SetupCatalog.Items)
+        foreach (var agents in new[] { false, true })
         {
-            var row = BuildSetupRow(item, inSettings);
-            row.Divider = _theme.Divider();
-            rows.Children.Add(row.Divider);
-            rows.Children.Add(row.Root);
-            _setupRows.Add(row);
+            var header = new StackPanel { Spacing = 3, Margin = new Thickness(0, agents ? 14 : 2, 0, 2) };
+            header.Children.Add(_theme.Eyebrow(agents ? SetupCatalog.AgentsLabel : SetupCatalog.ShellLabel));
+            var sentence = _theme.Caption(agents ? SetupCatalog.AgentsIntro : SetupCatalog.ShellIntro);
+            sentence.TextWrapping = TextWrapping.Wrap; sentence.TextTrimming = TextTrimming.None;
+            header.Children.Add(sentence);
+            rows.Children.Add(header);
+            _setupHeaders.Add((inSettings, agents, header));
+            foreach (var item in SetupCatalog.Items.Where(item => (item.Id != SetupCatalog.PowerShell) == agents))
+            {
+                var row = BuildSetupRow(item, inSettings);
+                row.Divider = _theme.Divider();
+                rows.Children.Add(row.Divider);
+                rows.Children.Add(row.Root);
+                _setupRows.Add(row);
+            }
         }
         return rows;
     }
@@ -350,9 +366,6 @@ internal sealed partial class MainWindow
         close.Click += (_, _) => CloseSetupPanel();
         Grid.SetColumn(close, 1); top.Children.Add(close);
         content.Children.Add(top);
-        var intro = _theme.BodyText(SetupCatalog.Intro, 13); intro.TextWrapping = TextWrapping.Wrap; intro.Foreground = _theme.TextSecondary;
-        intro.Margin = new Thickness(0, 0, 0, 6);
-        content.Children.Add(intro);
         content.Children.Add(BuildSetupRows(inSettings: false));
         content.Children.Add(_theme.Divider());
         var footnote = _theme.Tertiary(SetupCatalog.Footnote); footnote.TextWrapping = TextWrapping.Wrap; footnote.TextTrimming = TextTrimming.None;
@@ -421,8 +434,9 @@ internal sealed partial class MainWindow
         var checking = _detection.Count == 0 && !_detectionFailed && SetupGapsOverride is null;
         var offPath = ClaudeOffPath();
         var (winget, npm) = (SetupWinget, SetupNpm);
-        foreach (var place in _setupRows.GroupBy(row => row.InSettings))
+        foreach (var place in _setupRows.GroupBy(row => (row.InSettings, Agents: row.Item.Id != SetupCatalog.PowerShell)))
         {
+            // No hairline above a group's first row: its label is there.
             var first = true;
             foreach (var row in place)
             {
@@ -447,6 +461,8 @@ internal sealed partial class MainWindow
                 if (row.Divider is { } divider) divider.Visibility = shown && !first ? Visibility.Visible : Visibility.Collapsed;
                 if (shown) first = false;
             }
+            foreach (var header in _setupHeaders.Where(header => header.InSettings == place.Key.InSettings && header.Agents == place.Key.Agents))
+                header.Header.Visibility = place.Any(row => row.Root.Visibility == Visibility.Visible) ? Visibility.Visible : Visibility.Collapsed;
         }
         if (_setupSection is { } section)
         {

@@ -63,7 +63,17 @@ public static class SetupCatalog
 
     public const string Heading = "Get set up";
 
-    public const string Intro = "A coding agent is an AI assistant that works in a terminal. It reads and edits the files in a folder and runs commands, " +
+    /// <summary>
+    /// The panel lists PowerShell 7 apart from the agents, each group under its own label and sentence: with one list of five
+    /// under "only one is needed", PowerShell 7 read as a fifth choice of agent (Chris, November 27, 2026).
+    /// </summary>
+    public const string ShellLabel = "PowerShell";
+
+    public const string ShellIntro = "SicTerm runs its tabs and agents in PowerShell 7 when it is installed, and in Windows PowerShell 5.1 until then.";
+
+    public const string AgentsLabel = "Coding agents";
+
+    public const string AgentsIntro = "A coding agent is an AI assistant that works in a terminal. It reads and edits the files in a folder and runs commands, " +
         "asking before it acts. SicTerm can run four of them. Only one is needed.";
 
     /// <summary>Under the rows, once for all of them.</summary>
@@ -85,7 +95,7 @@ public static class SetupCatalog
         new(PowerShell, "PowerShell 7",
             "Recommended. PowerShell 5.1 runs the basics, but some coding tools and commands only work in PowerShell 7.",
             "Windows comes with PowerShell 5.1, which dates from 2016. PowerShell 7 is the current version from Microsoft and installs beside it. " +
-            "SicTerm and the agents start in 5.1, but npm and some commands written for 7 fail there.",
+            "In 5.1, npm and some commands written for 7 fail.",
             new("https://learn.microsoft.com/powershell/scripting/install/install-powershell-on-windows")),
         new("claude", "Claude Code",
             "From Anthropic. Needs a paid Claude plan or a Console account.",
