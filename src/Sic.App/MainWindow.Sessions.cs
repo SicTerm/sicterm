@@ -223,7 +223,7 @@ internal sealed partial class MainWindow
         pane.KeepEvenRequested += (source, on) => { if (HostOf(source) is { } home) SetKeepEven(home, on); };
         pane.DuplicateRequested += async source => await DuplicateAsync(source);
         pane.MoveOutRequested += source => { try { MovePaneToNewTab(source); } catch (Exception exception) { ShowError(exception.Message); } };
-        pane.ZoomRequested += source => { if (HostOf(source) is { } owner) SetZoomed(owner, owner.Content.Zoomed == source.Descriptor.Id ? null : source); };
+        pane.ZoomRequested += source => { if (HostOf(source) is { } owner) SetZoomOn(owner.Content.Zoomed != source.Descriptor.Id, owner, source); };
         pane.MoveRequested += BeginPaneDrag;
         pane.CloseRequested += async closing => { if (HostOf(closing) is { } owner) await ClosePaneAsync(owner, closing); };
         pane.Shortcut += async name => await HandleShortcutAsync(name);
@@ -295,15 +295,15 @@ internal sealed partial class MainWindow
     /// <summary>
     /// Gives the tab a new tree, lists its panes in the tree's order, and retiles it. A tab that keeps its panes even is given
     /// the tree evened (<see cref="PaneLayout.Even"/>): every split, close, move and drop goes through here, and a divider drag does not.
-    /// A pane that joins or leaves the tab ends its zoom (MainWindow.Zoom.cs); a new tiling of the same panes keeps it.
+    /// With the zoom on, the zoomed pane keeps it while it stays in the tab, and one that leaves passes it to the pane focused (MainWindow.Zoom.cs).
     /// </summary>
     private void SetTree(TabHost host, PaneNode tree)
     {
         if (host.Saved.KeepEven == true) tree = PaneLayout.Even(tree);
         var order = PaneLayout.Leaves(tree).Select((id, index) => (id, index)).ToDictionary(pair => pair.id, pair => pair.index, StringComparer.Ordinal);
         host.Panes.Sort((left, right) => order[left.Descriptor.Id].CompareTo(order[right.Descriptor.Id]));
-        var samePanes = host.Saved.Panes.Count == host.Panes.Count && host.Saved.Panes.All(saved => order.ContainsKey(saved.Id));
-        host.Saved = host.Saved with { Panes = host.Panes.Select(item => item.Descriptor).ToList(), Layout = tree, Zoomed = samePanes ? host.Saved.Zoomed : null };
+        var zoomed = host.Saved.Zoomed is { } kept && order.ContainsKey(kept) ? kept : _zoomOn && host.Saved.Zoomed is not null && host.Panes.Count > 0 ? FocusedPane(host).Descriptor.Id : null;
+        host.Saved = host.Saved with { Panes = host.Panes.Select(item => item.Descriptor).ToList(), Layout = tree, Zoomed = zoomed };
         host.Item.Tag = host.Saved;
         LayoutPanes(host);
         ApplyZoom(host);

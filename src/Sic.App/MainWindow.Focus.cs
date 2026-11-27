@@ -29,8 +29,8 @@ internal sealed partial class MainWindow
         _paintedSelected = host;
         if (previous is not null && previous != host && _open.ContainsKey(previous.Item)) PaintTab(previous);
         if (host is not null) PaintTab(host);
-        // The tab's own zoom, and the terminal area lifted over the sidebar only while it has one.
-        if (host is not null) ApplyZoom(host); else LiftWork(false);
+        // With the zoom on, the tab shown zooms its focused pane (MainWindow.Zoom.cs).
+        if (host is not null) ShowZoom(host);
         var pane = host is { Panes.Count: > 0 } ? FocusedPane(host) : null;
         SetActivePane(pane);
         // A tab chosen on the tab strip from the keyboard keeps the keyboard there, for the next Alt+Left or Alt+Right; a click,
@@ -51,7 +51,7 @@ internal sealed partial class MainWindow
         _activePane = pane;
         if (pane is not null) pane.LastActive = ++_activations;
         RefreshActiveRing();
-        // In a tab with a zoomed pane, the zoom goes where the keyboard does (MainWindow.Zoom.cs).
+        // With the zoom on, it goes where the keyboard does (MainWindow.Zoom.cs).
         if (pane is not null) FollowZoom(pane);
         // The Workspaces panel lights the row of the pane with the keyboard.
         if (!_restoring) RefreshWorkspaceStates();

@@ -191,6 +191,8 @@ internal sealed partial class MainWindow
             .Select(pane => TabLabels.Key(pane.AgentId, pane.SessionId!)).Distinct(StringComparer.Ordinal).ToList();
         // A restore starts from nothing: the launch's, and the verification's, which empties the strip and restores what it saved.
         _workspaces.Clear();
+        // A layout with a zoomed tab comes back with the zoom on (MainWindow.Zoom.cs).
+        _zoomOn = saved.SelectMany(workspace => workspace.Tabs).Any(tab => tab.Zoomed is not null);
         try
         {
             _restoring = true; _switchingWorkspace = true;

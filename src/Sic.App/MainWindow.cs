@@ -177,7 +177,6 @@ internal sealed partial class MainWindow : Window
         // A width saved by 0.9.26 or 0.9.27 as a word is read once into pixels, and not written again.
         if (_preferences.PaneBorder is { } borderWord) { _preferences.PaneBorderWidth = PaneBorder.FromWord(borderWord); _preferences.PaneBorder = null; }
         _preferences.PaneBorderWidth = PaneBorder.Clamp(_preferences.PaneBorderWidth);
-        _preferences.PaneZoom = PaneZoom.Normalize(_preferences.PaneZoom);
         _preferences.PaneZoomPercent = PaneZoom.Clamp(_preferences.PaneZoomPercent);
         _preferences.WindowOpacity = ClampWindowOpacity(_preferences.WindowOpacity);
         // The Frosted chrome switch of an early build (0.9.52-trial.1) is read once into the Chrome choice, and not written again.
@@ -248,10 +247,6 @@ internal sealed partial class MainWindow : Window
                 if (_options.RestoreOnly) { await RunRestoreCheckAsync(); return; }
                 if (_options.Measure is { } measure) { await MeasureHiddenOutputAsync(measure); return; }
                 if (_options.SmokeTest) CreateSmokeHistory();
-                // A tab restored zoomed, now that the window is placed: the Screen frame may grow it (MainWindow.Zoom.cs).
-                // After the first layout, so the body's size is known.
-                if (SelectedHost is { Content.Zoomed: not null } zoomedAtLaunch)
-                    DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => { if (ReferenceEquals(SelectedHost, zoomedAtLaunch)) ApplyZoom(zoomedAtLaunch); });
                 // The browser that every terminal runs in is brought up now, so the first session does not wait for it.
                 TerminalView.WarmUp(Path.Combine(_options.DataDirectory, "WebView2"));
                 // The list from the catalog as it stands, at once; the refresh below brings it up to date and lists again
@@ -334,10 +329,9 @@ internal sealed partial class MainWindow : Window
         // The unseen emoji box, for the Emoji… item on a folder's menu in either panel (docs/decisions/folder-emoji.md): under the root, so it is there whichever panel shows.
         _root.Children.Add(BuildFolderEmojiBox());
         var status = BuildStatusBar(); Grid.SetRow(status, 1); _root.Children.Add(status);
-        // The zoomed pane's card follows the window's body as it moves and resizes (MainWindow.Zoom.cs).
+        // The zoomed pane's card follows the terminal area as it resizes (MainWindow.Zoom.cs).
         _root.LayoutUpdated += (_, _) => FollowZoomFrame();
         // A move or resize may put the window on another display, or at another scaling: the Screen frame reads the work area again.
-        AppWindow.Changed += (_, args) => { if (args.DidPositionChange || args.DidSizeChange) _zoomWorkArea = null; };
         RegisterShortcuts();
         ApplySidebarSide();
         ApplyTabBarSide();

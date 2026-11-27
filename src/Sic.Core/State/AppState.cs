@@ -26,7 +26,8 @@ public sealed record SavedPane(string Id, string AgentId, string Title, string W
 /// from the tab's menu. A tab saved before the choice existed (null) keeps even when none of its dividers has been dragged
 /// (<see cref="PaneLayout.Untouched"/>), and keeps its own ratios otherwise; the answer is written from then on.
 /// <see cref="Zoomed"/> is the <see cref="SavedPane.Id"/> of the pane shown as a card over the others (<see cref="Appearance.PaneZoom"/>),
-/// or null, not written, while none is; an id the tab no longer holds reads as none.
+/// or null, not written, while none is; an id the tab no longer holds reads as none. The zoom is the window's: while any tab has
+/// a zoomed pane, every tab shown zooms its focused pane, so a layout with one comes back zoomed.
 /// </summary>
 public sealed record SavedTab(string Id, string Title, List<SavedPane> Panes, string? CustomTitle = null, double? SplitRatio = null, string? Color = null,
     double? RowRatio = null, PaneNode? Layout = null, bool? KeepEven = null,
@@ -132,9 +133,7 @@ public sealed class AppPreferences
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? PaneBorder { get; set; }
-    /// <summary>A <see cref="Appearance.PaneZoom"/> word: what the zoomed pane's card is a share of (Settings → Zoomed pane). Normalized on load.</summary>
-    public string PaneZoom { get; set; } = Appearance.PaneZoom.Default;
-    /// <summary>The zoomed pane's card, in percent of its frame's width and height (Settings → Zoomed pane size). Clamped on load by <see cref="Appearance.PaneZoom.Clamp"/>.</summary>
+    /// <summary>The zoomed pane's card, in percent of the terminal area's width and height (Settings → Zoomed pane size). Clamped on load by <see cref="Appearance.PaneZoom.Clamp"/>.</summary>
     public int PaneZoomPercent { get; set; } = Appearance.PaneZoom.DefaultPercent;
     /// <summary>A <see cref="SettingsTabs"/> word: the Settings tab last shown. Normalized on load.</summary>
     public string SettingsTab { get; set; } = SettingsTabs.General;

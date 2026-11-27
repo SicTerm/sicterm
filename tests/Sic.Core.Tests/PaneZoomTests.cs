@@ -8,28 +8,6 @@ namespace Sic.Core.Tests;
 public sealed class PaneZoomTests
 {
     [Theory]
-    [InlineData("screen", "screen")]
-    [InlineData("window", "window")]
-    [InlineData(" WINDOW ", "window")]
-    [InlineData(" AREA ", "area")]
-    [InlineData("area", "area")]
-    [InlineData(null, "screen")]
-    [InlineData("", "screen")]
-    [InlineData("monitor", "screen")]
-    public void AnUnknownWordGivesTheDefault(string? frame, string expected) => Assert.Equal(expected, PaneZoom.Normalize(frame));
-
-    [Fact]
-    public void EveryChoiceHasALabelAndNormalizesToItself()
-    {
-        foreach (var choice in PaneZoom.Choices)
-        {
-            Assert.Equal(choice, PaneZoom.Normalize(choice));
-            Assert.NotEmpty(PaneZoom.Label(choice));
-        }
-        Assert.Contains(PaneZoom.Default, PaneZoom.Choices);
-    }
-
-    [Theory]
     [InlineData(10, PaneZoom.MinPercent)]
     [InlineData(80, 80)]
     [InlineData(100, PaneZoom.MaxPercent)]
@@ -39,7 +17,6 @@ public sealed class PaneZoomTests
     public void ASettingsFileWithoutTheZoomTakesTheDefaults()
     {
         var preferences = JsonSerializer.Deserialize<AppPreferences>("{}")!;
-        Assert.Equal(PaneZoom.Default, preferences.PaneZoom);
         Assert.Equal(PaneZoom.DefaultPercent, preferences.PaneZoomPercent);
     }
 
@@ -63,32 +40,6 @@ public sealed class PaneZoomTests
 
     [Fact]
     public void AnEmptyFrameGivesAnEmptyCard() => Assert.Equal(0, PaneZoom.Card(new PaneRect(5, 5, 0, 300), 80).Width);
-
-    [Fact]
-    public void TheScreenCardIsTheShareOfTheWorkAreaCentredOnTheBody()
-    {
-        // A 1920×1040 work area at 80% is 1536×832, centred on a body that holds it.
-        var card = PaneZoom.ScreenCard(new PaneRect(-60, -40, 1920, 1000), 1920, 1040, 80);
-        Assert.Equal(new PaneRect(132, 44, 1536, 832), card);
-    }
-
-    [Fact]
-    public void TheScreenCardIsNoBiggerThanTheBody()
-    {
-        var card = PaneZoom.ScreenCard(new PaneRect(0, 0, 1000, 700), 1920, 1040, 80);
-        Assert.Equal(new PaneRect(0, 0, 1000, 700), card);
-    }
-
-    [Theory]
-    // A maximized 1080p window's body holds 80%: 832 + 2×40 ≤ 1010.
-    [InlineData(1920, 1010, 80, true)]
-    // The smoke's 1440×900 window does not: 1536 > 1440.
-    [InlineData(1440, 870, 80, false)]
-    // 1440 holds 70% (1344) across, but not 728 + 80 down in 800.
-    [InlineData(1440, 800, 70, false)]
-    [InlineData(1440, 870, 70, true)]
-    public void TheBodyHoldsTheScreenCardWithTheStripToSpare(double bodyWidth, double bodyHeight, int percent, bool fits) =>
-        Assert.Equal(fits, PaneZoom.ScreenCardFits(bodyWidth, bodyHeight, 1920, 1040, percent, 40));
 
     [Fact]
     public void ATabSavesItsZoomedPaneOnlyWhileOneIsZoomed()

@@ -131,19 +131,14 @@ internal sealed partial class MainWindow
         var paneBorderColor = BuildPaneBorderColorButton();
         Grid.SetColumn(paneBorderColor, 2); paneBorderRow.Children.Add(paneBorderColor);
         stack.Children.Add(paneBorderRow);
-        // The zoomed pane's card (Ctrl+Shift+Z, MainWindow.Zoom.cs): what it is a share of, and how big a share, applied at once.
-        var zoom = new ComboBox { Header = "Zoomed pane", HorizontalAlignment = HorizontalAlignment.Stretch };
-        foreach (var frame in PaneZoom.Choices) zoom.Items.Add(new ComboBoxItem { Content = PaneZoom.Label(frame), Tag = frame });
-        zoom.SelectedItem = zoom.Items.OfType<ComboBoxItem>().First(item => (string)item.Tag == _preferences.PaneZoom);
-        zoom.SelectionChanged += (_, _) => { if (zoom.SelectedItem is ComboBoxItem { Tag: string frame }) SetPaneZoom(frame, _preferences.PaneZoomPercent); };
-        Explain(zoom, "Ctrl+Shift+Z shows the focused pane as a card over the others, and puts it back. Screen: a share of the display, whatever the window's size; a window too small for it fills the display while zoomed. Window: a share of the whole window, over the side panel too. Terminal area: a share of the room the panes have.");
-        stack.Children.Add(zoom);
+        // The zoomed pane's card (Ctrl+Shift+Z, MainWindow.Zoom.cs): its share of the terminal area, applied at once.
         var zoomSize = new Slider
         {
             Header = "Zoomed pane size", Minimum = PaneZoom.MinPercent, Maximum = PaneZoom.MaxPercent, StepFrequency = 5, SmallChange = 5, LargeChange = 10,
             Value = _preferences.PaneZoomPercent, IsThumbToolTipEnabled = false
         };
-        zoomSize.ValueChanged += (_, args) => SetPaneZoom(_preferences.PaneZoom, (int)Math.Round(args.NewValue));
+        zoomSize.ValueChanged += (_, args) => SetPaneZoom((int)Math.Round(args.NewValue));
+        Explain(zoomSize, "Ctrl+Shift+Z shows the focused pane as a card over the others, and puts it back. The card is this share of the room the panes have, and follows the keyboard to other panes, tabs and workspaces until zoomed out.");
         _paneZoomValue = _theme.Caption(PaneZoom.PercentLabel(_preferences.PaneZoomPercent));
         _paneZoomValue.VerticalAlignment = VerticalAlignment.Bottom;
         _paneZoomValue.Margin = new Thickness(0, 0, 0, 8);
@@ -442,7 +437,7 @@ internal sealed partial class MainWindow
             ("F2", "Rename the focused pane; in a tab of one pane, or on the tab strip, the tab"),
             ("Alt+Shift+Plus", "Split right: a new session beside the focused pane"), ("Alt+Shift+Minus", "Split down: a new session below it (up to " + PaneLayout.MaxPanes + " panes per tab)"),
             ("Alt+Arrow", "Move to the pane on that side (where there is none, the key reaches the terminal)"),
-            ("Ctrl+Shift+Z", "Zoom the focused pane over the others, and back; Alt+Arrow and a click on another pane move the zoom (Settings → Zoomed pane)"),
+            ("Ctrl+Shift+Z", "Zoom the focused pane over the others, and back; the zoom follows Alt+Arrow, a click on another pane, Ctrl+Tab and workspace switches (Settings → Zoomed pane size)"),
             TabsBottom
                 ? ("Alt+Down", "From the bottom row, down to the tabs: Alt+Left and Alt+Right switch tabs, Alt+Up, Up or Enter go back in")
                 : ("Alt+Up", "From the top row, up to the tabs: Alt+Left and Alt+Right switch tabs, Alt+Down, Down or Enter go back in"),
@@ -660,10 +655,9 @@ internal sealed partial class MainWindow
 
     private TextBlock? _paneZoomValue;
 
-    /// <summary>Settings → Zoomed pane and its size. Saved, and every zoomed pane's card made again at once.</summary>
-    internal void SetPaneZoom(string frame, int percent)
+    /// <summary>Settings → Zoomed pane size. Saved, and every zoomed pane's card made again at once.</summary>
+    internal void SetPaneZoom(int percent)
     {
-        _preferences.PaneZoom = PaneZoom.Normalize(frame);
         _preferences.PaneZoomPercent = PaneZoom.Clamp(percent);
         SavePreferences();
         if (_paneZoomValue is not null) _paneZoomValue.Text = PaneZoom.PercentLabel(_preferences.PaneZoomPercent);
