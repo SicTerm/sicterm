@@ -12,7 +12,7 @@ namespace Sic.App;
 /// to start; it then comes back to the workspace and the tab it began on. One notice at the end says what started and what
 /// did not, in place of a notice per pane: brief when everything started, held when anything fell short. Until November 9,
 /// 2026 it took the current workspace only, while the rail's button was lit for a placeholder in any (Chris: "resume all for
-/// all folders"). Since November 26, 2026 a run can take one workspace alone: Resume this workspace's tabs, on the workspace's
+/// all folders"). Since November 26, 2026 a run can take one workspace alone: Resume workspace tabs, on the workspace's
 /// and the tab's menus and Ctrl+F5 (Chris: "resume only items in the selected workspace").
 /// </summary>
 internal sealed partial class MainWindow
@@ -40,7 +40,7 @@ internal sealed partial class MainWindow
     internal Task<bool> ResumeAllFromUserAsync(StartRequest request) => ResumeAllAsync(request);
 
     /// <summary>
-    /// Resume this workspace's tabs (Ctrl+F5, the workspace's menu, the tab's menu): Resume all for one workspace's tabs, the rest
+    /// Resume workspace tabs (Ctrl+F5, the workspace's menu, the tab's menu): Resume all for one workspace's tabs, the rest
     /// left waiting. The run shows that workspace and stays on it: from another workspace's menu, the workspace asked for is the
     /// one the user is going to, as Consolidate tabs on the same menu goes there.
     /// </summary>
@@ -51,7 +51,7 @@ internal sealed partial class MainWindow
         return ResumeAllAsync(request, workspace);
     }
 
-    /// <summary>Whether a workspace has a pane that is not running, for its menus' Resume this workspace's tabs.</summary>
+    /// <summary>Whether a workspace has a pane that is not running, for its menus' Resume workspace tabs.</summary>
     internal bool HasResumable(Workspace workspace) => HostsOf(workspace).Any(host => !host.Closing && host.Panes.Any(pane => !pane.IsRunning));
 
     /// <summary>

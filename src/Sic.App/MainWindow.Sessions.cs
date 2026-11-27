@@ -140,8 +140,8 @@ internal sealed partial class MainWindow
         resumeAll.Click += async (_, _) => await ResumeAllFromUserAsync(new("Resume all tabs on the tab's right-click menu", DateTimeOffset.UtcNow));
         menu.Opening += (_, _) => resumeAll.IsEnabled = !ResumingAll && AllPanes.Any(pane => !pane.IsRunning);
         // The tab's own workspace, read as the menu opens and as it is clicked: the tab may have moved to another meanwhile.
-        var resumeHere = new MenuFlyoutItem { Text = "Resume this workspace's tabs", KeyboardAcceleratorTextOverride = "Ctrl+F5", Icon = ResumeAllMark.Icon() };
-        resumeHere.Click += async (_, _) => await ResumeWorkspaceFromUserAsync(WorkspaceOf(host), new("Resume this workspace's tabs on the tab's right-click menu", DateTimeOffset.UtcNow));
+        var resumeHere = new MenuFlyoutItem { Text = "Resume workspace tabs", KeyboardAcceleratorTextOverride = "Ctrl+F5", Icon = ResumeAllMark.Icon() };
+        resumeHere.Click += async (_, _) => await ResumeWorkspaceFromUserAsync(WorkspaceOf(host), new("Resume workspace tabs on the tab's right-click menu", DateTimeOffset.UtcNow));
         menu.Opening += (_, _) => resumeHere.IsEnabled = !ResumingAll && WorkspaceOf(host) is { } own && HasResumable(own);
         var consolidate = new MenuFlyoutItem { Text = "Consolidate tabs by folder", KeyboardAcceleratorTextOverride = "F6", Icon = new FontIcon { Glyph = ConsolidateGlyph, FontFamily = Theme.Icons } };
         consolidate.Click += (_, _) => ConsolidateTabsFromUser();

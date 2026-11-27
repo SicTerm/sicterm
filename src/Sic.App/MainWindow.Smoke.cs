@@ -1753,7 +1753,7 @@ internal sealed partial class MainWindow
             if (!f5ResumesAll) throw new InvalidOperationException($"F5 inside a live terminal did not resume all, or closed the panel: taken={f5Taken} running={keyHost.Panes[0].IsRunning} notice='{LastNotice?.Title}' panelOpen={_panelOpen} saved={_preferences.PanelOpen}.");
 
             // Ctrl+F5 from inside a live terminal: this workspace's placeholder starts and another workspace's waits. Then
-            // Resume this workspace's tabs for that other workspace, as its menu asks: it goes there, starts its placeholder, and stays.
+            // Resume workspace tabs for that other workspace, as its menu asks: it goes there, starts its placeholder, and stays.
             var homeWorkspace = _workspace;
             var otherFolder = PinnedFolders.Normalize(Path.Combine(data, "resume-workspace"));
             Directory.CreateDirectory(otherFolder);
@@ -1773,7 +1773,7 @@ internal sealed partial class MainWindow
                 && ReferenceEquals(_workspace, homeWorkspace) && ReferenceEquals(_tabs.SelectedItem, shellHost.Item) && LastNotice is { Title: "Resumed 1 session" }
                 && HasResumable(otherWorkspace) && !HasResumable(homeWorkspace!);
             LastNotice = null;
-            var thereResumed = await ResumeWorkspaceFromUserAsync(otherWorkspace, new("the verification's Resume this workspace's tabs", DateTimeOffset.UtcNow));
+            var thereResumed = await ResumeWorkspaceFromUserAsync(otherWorkspace, new("the verification's Resume workspace tabs", DateTimeOffset.UtcNow));
             await WaitForAsync(async () => thereHost.Panes[0].Terminal is { } started && (await started.ReadScreenAsync()).Contains("READY"));
             ctrlF5Parts += $" menu: resumed={thereResumed} there={thereHost.Panes[0].IsRunning} in={WorkspaceName(_workspace!)} notice='{LastNotice?.Title}'";
             var menuResumes = thereResumed && thereHost.Panes[0].IsRunning && ReferenceEquals(_workspace, otherWorkspace) && LastNotice is { Title: "Resumed 1 session" };
@@ -1783,7 +1783,7 @@ internal sealed partial class MainWindow
             if (homeWorkspace is not null && !ReferenceEquals(_workspace, homeWorkspace)) SwitchWorkspace(homeWorkspace);
             await CloseTabAsync(hereHost.Item);
             _tabs.SelectedItem = shellHost.Item;
-            if (!ctrlF5Resumes || !menuResumes) throw new InvalidOperationException($"Ctrl+F5 did not resume the current workspace's tabs alone, or Resume this workspace's tabs did not resume another's and go there: {ctrlF5Parts}.");
+            if (!ctrlF5Resumes || !menuResumes) throw new InvalidOperationException($"Ctrl+F5 did not resume the current workspace's tabs alone, or Resume workspace tabs did not resume another's and go there: {ctrlF5Parts}.");
             await SetPanelOpen(true, persist: false, animate: false);
 
             // F1 from inside a live terminal: the keyboard reference in a dialog under the mark and the name, every group and key
