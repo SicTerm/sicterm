@@ -2715,6 +2715,46 @@ internal sealed partial class MainWindow
                 ShowSettingsTab(SettingsTabs.Appearance);
                 await Task.Delay(150);
             }
+            // Add folders (MainWindow.FolderWizard.cs; November 27, 2026): the popup lists folders with a tick, a color and an emoji,
+            // its button counts the ticked ones, and closing it with that button adds the ticked folders with their color and
+            // emoji, and not the unticked ones. The history's suggestions here are the fixtures', unticked so nothing else is added.
+            var wizardOne = Directory.CreateDirectory(Path.Combine(data, "wizard-one")).FullName;
+            var wizardTwo = Directory.CreateDirectory(Path.Combine(data, "wizard-two")).FullName;
+            var offeredBefore = _preferences.AutoPinnedFolders.ToList();
+            string wizardImage = Path.Combine(data, "folder-wizard-native.png");
+            bool folderWizard;
+            try
+            {
+                var wizardTask = ShowFolderWizardAsync();
+                var wizardUp = await EventuallyAsync(() => FolderWizard is not null && FolderWizardRows is not null);
+                foreach (var suggestion in FolderWizardRows ?? []) SetWizardRow(suggestion.Path, ticked: false);
+                AddWizardRow(wizardOne, suggested: false);
+                AddWizardRow(wizardTwo, suggested: false);
+                SetWizardRow(wizardOne, ticked: true, color: TabColors.Presets[0].Id, emoji: "🧪");
+                SetWizardRow(wizardTwo, ticked: false);
+                var wizardRows = FolderWizardRows ?? [];
+                var wizardButton = FolderWizard is { IsPrimaryButtonEnabled: true, PrimaryButtonText: "Add folder" }
+                    && wizardRows.Any(row => row.Path == wizardOne && row.Ticked && row.Emoji == "🧪") && wizardRows.Any(row => row.Path == wizardTwo && !row.Ticked);
+                await Task.Delay(300);
+                if (FolderWizard is { } shown)
+                {
+                    try { await CaptureAsync(shown, wizardImage); } catch (Exception exception) when (exception is not OutOfMemoryException) { Diagnostics.Log("smoke wizard capture: " + exception.Message); }
+                }
+                AcceptFolderWizard();
+                await wizardTask.WaitAsync(TimeSpan.FromSeconds(10));
+                var wizardAdded = IsFolder(wizardOne) && !IsFolder(wizardTwo)
+                    && _preferences.FolderColor.GetValueOrDefault(PinnedFolders.Normalize(wizardOne)) == TabColors.Presets[0].Id
+                    && _preferences.FolderEmoji.GetValueOrDefault(PinnedFolders.Normalize(wizardOne)) == "🧪";
+                folderWizard = wizardUp && wizardButton && wizardAdded;
+                if (!folderWizard) throw new InvalidOperationException($"Add folders did not list, count or add as laid out: up={wizardUp} button={wizardButton} added={wizardAdded}.");
+            }
+            finally
+            {
+                if (IsFolder(wizardOne)) { SetFolderColor(wizardOne, null); SetFolderEmoji(wizardOne, null); RemoveFolder(wizardOne); }
+                _preferences.AutoPinnedFolders = offeredBefore;
+                SavePreferences();
+                _notice.IsOpen = false; LastNotice = null;
+            }
             // Settings → Session Indicator Width shows its width as it moves: while the slider has the keyboard, the pane that had
             // it wears the border even alone in its tab, and once the keyboard moves on to another setting, a lone pane wears none.
             var tabBeforeLone = _tabs.SelectedItem;
@@ -3895,7 +3935,7 @@ internal sealed partial class MainWindow
             _options.WriteReport(new
             {
                 success = true, terminalReady = true, inputEchoed = true, resized = true,
-                welcomeSkipped, welcomeOpened, welcomeCard, welcomeImage, setupNotice, setupImage, setupPopupImage, tourStops, tourDropMark, tourLimits, tourEnded, tourImage,
+                welcomeSkipped, welcomeOpened, welcomeCard, welcomeImage, setupNotice, setupImage, setupPopupImage, folderWizard, wizardImage, tourStops, tourDropMark, tourLimits, tourEnded, tourImage,
                 workspaceShell, brandMark, historySearch, previewShown, renamedSearch, placeholderRestored, reopenedNamed, closeToTray, minimizeToTray, closeAndMinimize,
                 inlineRename, f2Rename, f2FromTerminal, tabColored, reopenedColored, tabStripLegible, activeTabJoinsPane, harnessNameDropped, panePathFits,
                 sessionsGrouped, sectionsRuled, pinMarkDrawn, sessionsByFolder, newSessionFoldersListed, workspaceFolders, suggestedWorkspaces, usageLimits, statusLineKept, statusLineMs, limitsImage, contextWindow, folderEmoji, folderColors, sounds, folderExplorer, folderRowsPresented, foldersRelisted, workspaceFromFolder, updatesSection, appIconShipped, themeKeptScroll, userThemes, motionSetting, terminalOptionsApplied, cursorDrawn, copyOnSelect, terminalPaletteFixed,

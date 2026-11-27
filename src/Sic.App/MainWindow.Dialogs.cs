@@ -329,6 +329,17 @@ internal sealed partial class MainWindow
                 + "”, in the same tab, taking half of its room." + (target.Host.Panes.Count + 1 == PaneLayout.MaxPanes ? " That fills the tab." : ""));
         hint.TextWrapping = TextWrapping.Wrap; hint.TextTrimming = TextTrimming.None;
         content.Children.Add(hint);
+        // No folders listed yet: one line that leads to Add folders (MainWindow.FolderWizard.cs), unless the agent line above already leads somewhere.
+        var addFolders = false;
+        if (Folders.Count == 0 && !setUp && !SetupGaps.HasFlag(Sic.Core.Shell.SetupGap.Agent))
+        {
+            var noFolders = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+            noFolders.Children.Add(_theme.Caption(FolderWizardText.NewSessionLine));
+            var link = new HyperlinkButton { Content = "Add folders", Padding = new Thickness(0), MinHeight = 0, VerticalAlignment = VerticalAlignment.Center };
+            link.Click += (_, _) => { addFolders = true; _newSessionDialog?.Hide(); };
+            noFolders.Children.Add(link);
+            content.Children.Add(noFolders);
+        }
         var error = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = _theme.Danger, FontFamily = Theme.Body };
         content.Children.Add(error);
         var dialog = Dialog(target is null ? "New session" : "Split: new session", content, "Start");
@@ -352,7 +363,13 @@ internal sealed partial class MainWindow
             foreach (var definition in _preferences.Agents.Where(agent => agent.IsOn && group.All(item => (string)item.Tag != agent.Id)))
                 AddChoice(definition.Id, definition.Name, _available.GetValueOrDefault(definition.Id), found: true);
         }
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary) { if (setUp) OpenSetup(); return; }
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            if (setUp) OpenSetup();
+            // The dialog is gone first: one dialog at a time.
+            else if (addFolders) await ShowFolderWizardAsync();
+            return;
+        }
         // A folder outside every listed one may join the list first, or the session goes to Scratch (OfferFolderAsync); a split stays in its tab.
         if (target is null && !await OfferFolderAsync(directory.Text)) return;
         var id = (string)group.First(item => item.IsChecked == true).Tag;

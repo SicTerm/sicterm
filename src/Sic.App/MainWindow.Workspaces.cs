@@ -419,6 +419,7 @@ internal sealed partial class MainWindow
     private void FoldersChanged()
     {
         RefreshFolderMarks();
+        RefreshFoldersCard();
         RefreshFoldersPanel();
         RefreshWorkspacePanel();
         SaveLayout(); UpdateStatus();

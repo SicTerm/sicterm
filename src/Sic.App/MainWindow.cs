@@ -930,6 +930,9 @@ internal sealed partial class MainWindow : Window
         // Get set up, while the PC lacks PowerShell 7 or an agent (MainWindow.Setup.cs): the panel takes the mark's and the tagline's room.
         _setupHomeSlot = new Border();
         stack.Children.Add(_setupHomeSlot);
+        // Then the Folders card, while the list is empty and Get set up has nothing to show (MainWindow.FolderWizard.cs).
+        _foldersHomeSlot = new Border();
+        stack.Children.Add(_foldersHomeSlot);
         // No line of explanation under the name: the buttons say what to do (Chris, October 19, 2026; rotating tips may come later).
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 12, 0, 0) };
         var create = _theme.PrimaryButton("New session", "Ctrl+Shift+T");

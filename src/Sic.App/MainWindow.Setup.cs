@@ -344,6 +344,7 @@ internal sealed partial class MainWindow
                 first = false;
             }
         }
+        RefreshFoldersCard();
         RefreshShellCard();
     }
 

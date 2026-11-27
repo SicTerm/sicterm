@@ -248,6 +248,8 @@ public sealed class AppPreferences
     /// profile function from detection.
     /// </summary>
     public string[] ShellArguments { get; set; } = [];
+    /// <summary>The home screen's Folders card was closed with its X: it shows no more, and Add folders stays on the Folders panel.</summary>
+    public bool FoldersCardClosed { get; set; }
     /// <summary>
     /// Whether the status bar shows the plan limits of Claude and Codex while one of their panes runs (docs/decisions/usage-limits.md),
     /// and Claude Code is started with SIC as its status line command to report them. On by default.
