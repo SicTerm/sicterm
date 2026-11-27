@@ -130,7 +130,7 @@ public sealed class AgentLaunchBuilderTests
     [Theory]
     [InlineData("1.18.35", false)]
     [InlineData("opencode v2.0.26", true)]
-    public void Build_OpenCodeBefore2ExplainsItselfInThePaneInsteadOfStarting(string version, bool starts)
+    public async Task Build_OpenCodeBefore2ExplainsItselfInThePaneInsteadOfStarting(string version, bool starts)
     {
         var folder = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "sic-opencode-" + Guid.NewGuid().ToString("N"))).FullName;
         try
@@ -145,12 +145,19 @@ public sealed class AgentLaunchBuilderTests
                 UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true,
                 WorkingDirectory = request.WorkingDirectory
             };
+            // The stand-in is a script: run where scripts may, so the test is the version check in either PowerShell
+            // (Build_AnNpmInstallStartsWhereThePolicyRefusesScripts is the one about the policy).
+            start.ArgumentList.Add("-ExecutionPolicy");
+            start.ArgumentList.Add("RemoteSigned");
             foreach (var argument in request.Arguments) start.ArgumentList.Add(argument);
             start.Environment["PATH"] = folder + ";" + Environment.GetEnvironmentVariable("PATH");
+            start.Environment.Remove("PSModulePath");
             foreach (var (key, value) in request.Environment!) if (value is not null) start.Environment[key] = value;
             using var process = System.Diagnostics.Process.Start(start)!;
+            // Read together: a long error on stderr would otherwise fill its pipe while stdout is read to its end.
+            var errors = process.StandardError.ReadToEndAsync();
             var output = process.StandardOutput.ReadToEnd();
-            process.StandardError.ReadToEnd();
+            await errors;
             Assert.True(process.WaitForExit(30_000), "PowerShell did not finish.");
             if (starts)
             {
@@ -166,6 +173,68 @@ public sealed class AgentLaunchBuilderTests
                 Assert.DoesNotContain("STARTED", output);
                 Assert.Equal(1, process.ExitCode);
             }
+        }
+        finally { Directory.Delete(folder, recursive: true); }
+    }
+
+    private static readonly string WindowsPowerShell = Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
+
+    /// <summary>
+    /// The launch script against npm's three shims for a tool (sh, .cmd and .ps1, stand-ins here), in PowerShell 7 and in Windows
+    /// PowerShell 5.1, which a PC without PowerShell 7 runs every pane in. Where the execution policy allows scripts the .ps1
+    /// runs, as PowerShell resolves the name; under Restricted, Windows 11's default for 5.1, the .cmd runs instead of the
+    /// refusal. The .cmd writes to stderr around its version, as a native program can, through the version check's 2>&amp;1.
+    /// </summary>
+    [Theory]
+    [InlineData("7", "RemoteSigned", "PS1", "opencode v2.0.26")]
+    [InlineData("7", "Restricted", "CMD", "opencode v2.0.26")]
+    [InlineData("5.1", "RemoteSigned", "PS1", "opencode v2.0.26")]
+    [InlineData("5.1", "Restricted", "CMD", "opencode v2.0.26")]
+    [InlineData("5.1", "Restricted", "CMD", "1.18.35")]
+    public async Task Build_AnNpmInstallStartsWhereThePolicyRefusesScripts(string version, string policy, string runs, string answer)
+    {
+        var folder = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "sic-shims-" + Guid.NewGuid().ToString("N"))).FullName;
+        try
+        {
+            File.WriteAllText(Path.Combine(folder, "opencode"), "#!/bin/sh\necho SH-STARTED\n");
+            File.WriteAllText(Path.Combine(folder, "opencode.cmd"),
+                "@echo off\r\nif \"%~1\"==\"--version\" (echo noise 1>&2& echo " + answer + "& exit /b 0)\r\necho CMD-STARTED %*\r\nexit /b 7\r\n");
+            File.WriteAllText(Path.Combine(folder, "opencode.ps1"),
+                "if ($args -contains '--version') { '" + answer + "'; exit 0 }\n'PS1-STARTED ' + ($args -join ' '); exit 7\n");
+            var agent = new AgentDefinition("opencode", "OpenCode", "opencode", [], Path.Combine(folder, "share", "opencode"));
+            var request = AgentLaunchBuilder.Build(version == "7" ? PowerShell : WindowsPowerShell, agent, folder,
+                newSessionId: OpenCodeSessionIds.New(DateTimeOffset.UtcNow), loadProfile: false);
+            var start = new System.Diagnostics.ProcessStartInfo(request.Executable)
+            {
+                UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true,
+                WorkingDirectory = request.WorkingDirectory
+            };
+            // The policy for this process only, ahead of the script, as a machine's own would be.
+            start.ArgumentList.Add("-ExecutionPolicy");
+            start.ArgumentList.Add(policy);
+            foreach (var argument in request.Arguments) start.ArgumentList.Add(argument);
+            start.Environment["PATH"] = folder + ";" + Environment.GetEnvironmentVariable("PATH");
+            // Inherited from a PowerShell 7 that started the tests, its module path points 5.1 at 7's modules.
+            start.Environment.Remove("PSModulePath");
+            foreach (var (key, value) in request.Environment!) if (value is not null) start.Environment[key] = value;
+            using var process = System.Diagnostics.Process.Start(start)!;
+            var errors = process.StandardError.ReadToEndAsync();
+            var output = process.StandardOutput.ReadToEnd();
+            Assert.True(process.WaitForExit(30_000), "PowerShell did not finish.");
+            Assert.DoesNotContain("SH-STARTED", output);
+            if (answer.StartsWith('1'))
+            {
+                // The explanation names the program that answered, the .cmd behind the alias.
+                Assert.True(output.Contains("SicTerm needs OpenCode 2.0 or later, and opencode (" + Path.Combine(folder, "opencode." + runs.ToLowerInvariant()) + ") reports: 1.18.35",
+                    StringComparison.Ordinal), "Output: " + output + "\nErrors: " + await errors);
+                Assert.DoesNotContain("-STARTED", output);
+                Assert.Equal(1, process.ExitCode);
+                return;
+            }
+            Assert.True(output.Contains(runs + "-STARTED --session ses_", StringComparison.Ordinal), "Output: " + output + "\nErrors: " + await errors);
+            Assert.Contains("--standalone", output);
+            Assert.DoesNotContain("SicTerm needs OpenCode", output);
+            Assert.Equal(7, process.ExitCode);
         }
         finally { Directory.Delete(folder, recursive: true); }
     }

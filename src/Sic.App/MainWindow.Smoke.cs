@@ -2631,9 +2631,9 @@ internal sealed partial class MainWindow
                 throw new InvalidOperationException($"Switching Claude Code off did not take it out of sight, or on did not bring it back: listed={claudeListedBefore} rowsGone={claudeRowsGone} filterGone={claudeFilterGone} placeholders={claudePlaceholdersOff} refused={claudeStartRefused} back={claudeBack}.");
             // An agent installed since detection last looked (October 19, 2026): undecided, OpenCode has no tile when New session
             // opens; the detection the dialog starts finds it, turns it on, says so, and adds its tile before PowerShell's while
-            // the dialog is up. pwsh stands in for the install, since every PC that runs SicTerm has it.
+            // the dialog is up. Windows PowerShell stands in for the install, since every PC that runs SicTerm has it.
             var openCodeBefore = _preferences.Agents.Single(agent => agent.Id == "opencode");
-            _preferences.Agents = _preferences.Agents.Select(agent => agent.Id == "opencode" ? agent with { Enabled = null, Executable = "pwsh" } : agent).ToList();
+            _preferences.Agents = _preferences.Agents.Select(agent => agent.Id == "opencode" ? agent with { Enabled = null, Executable = "powershell" } : agent).ToList();
             RefreshAgentRows();
             _detectedAt = DateTimeOffset.MinValue;
             string[] TileIds() => _newSessionTiles?.Children.OfType<Microsoft.UI.Xaml.Controls.Primitives.ToggleButton>().Select(button => (string)button.Tag).ToArray() ?? [];
