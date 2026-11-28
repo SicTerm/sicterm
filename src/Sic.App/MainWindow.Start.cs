@@ -245,7 +245,7 @@ internal sealed partial class MainWindow
         };
     }
 
-    private async Task StartNewAsync(string agentId, string directory, SplitTarget? target = null)
+    private async Task<SessionPane?> StartNewAsync(string agentId, string directory, SplitTarget? target = null, string? title = null)
     {
         if (!Path.IsPathFullyQualified(directory) || !Directory.Exists(directory)) throw new DirectoryNotFoundException("The working folder must be an existing full path.");
         var definition = _preferences.Agents.FirstOrDefault(agent => agent.Id == agentId);
@@ -259,7 +259,7 @@ internal sealed partial class MainWindow
         if (agentId == "hermes")
         {
             try { turn = await TakeHermesTurnAsync(definition!, directory); }
-            catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return; }
+            catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return null; }
         }
         // Set once the binding has the turn, which it ends; until then a failure ends it here.
         var linking = false;
@@ -267,8 +267,8 @@ internal sealed partial class MainWindow
         {
             CheckLimit();
             var (id, name) = FreshStart.NewIdentity(agentId, DateTimeOffset.UtcNow);
-            var saved = new SavedPane(Guid.NewGuid().ToString("N"), agentId, NewTitle(agentId, directory), directory, definition?.HistoryDirectory ?? "", id, name, Unsaved: agentId != "shell");
-            var title = saved.Title;
+            var saved = new SavedPane(Guid.NewGuid().ToString("N"), agentId, title ?? NewTitle(agentId, directory), directory, definition?.HistoryDirectory ?? "", id, name, Unsaved: agentId != "shell");
+            var tabTitle = saved.Title;
             SessionPane pane;
             // A tab that began closing, or closed, while the new-session dialog was up, or whose pane to split has gone, gets a tab of its own instead.
             if (target is { Host: { Closing: false } into } && _open.ContainsKey(into.Item) && !_closingTabs.Contains(into.Item) && into.Panes.Count < PaneLayout.MaxPanes && into.Panes.Contains(target.Pane))
@@ -278,7 +278,7 @@ internal sealed partial class MainWindow
             }
             else
             {
-                var made = CreateTab(new SavedTab(Guid.NewGuid().ToString("N"), title, [saved]));
+                var made = CreateTab(new SavedTab(Guid.NewGuid().ToString("N"), tabTitle, [saved]));
                 pane = made.Panes[0];
                 // The tab goes to its folder's workspace, the strip following (the folder decides; docs/decisions/workspaces.md).
                 PlaceTab(made);
@@ -290,7 +290,7 @@ internal sealed partial class MainWindow
             if (turn is not null) _hermesTurns.Launched(turn, launchedAt);
             try { await pane.StartAsync(request, new("a new session", launchedAt), () => !CloseDecided(pane)); }
             // Closed, or SIC quit, while its terminal waited for its tab to be shown: nothing started, nothing to report.
-            catch (OperationCanceledException) when (Leaving(pane) || CloseDecided(pane)) { return; }
+            catch (OperationCanceledException) when (Leaving(pane) || CloseDecided(pane)) { return null; }
             // Nothing began, so there is no conversation to come back to: a placeholder left behind would offer a Resume that
             // looks for a session that was never saved. The pane goes, and the error is reported by the caller.
             catch (Exception exception) when (!pane.IsRunning && HostOf(pane) is { } failed)
@@ -299,6 +299,7 @@ internal sealed partial class MainWindow
                 throw new InvalidOperationException("The new " + Theme.AgentName(agentId) + " session did not start: " + exception.Message, exception);
             }
             if (agentId != "shell") { BindCreated(pane, definition!, launchedAt, turn); linking = true; }
+            return pane;
         }
         finally { if (turn is not null && !linking) _hermesTurns.End(turn); }
     }

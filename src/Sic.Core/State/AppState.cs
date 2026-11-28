@@ -236,6 +236,21 @@ public sealed class AppPreferences
     /// </summary>
     public int WelcomeSeen { get; set; }
     /// <summary>
+    /// The setup notice's gaps (<see cref="Shell.SetupAdvisor"/>) closed at launch: a launch shows only the others, so a closed
+    /// notice never comes back at launch, and one left open shows again at the next.
+    /// </summary>
+    public Shell.SetupGap SetupClosedAtLaunch { get; set; }
+    /// <summary>The gaps the Get set up panel showed on the home screen when its X closed it there: it comes back only for a gap that was not among them.</summary>
+    public Shell.SetupGap SetupClosedOnHome { get; set; }
+    /// <summary>
+    /// Settings → Agents → PowerShell's extra arguments, for PowerShell tabs only (<see cref="Shell.ShellStatus.Arguments"/>):
+    /// agents start through a script of SicTerm's own, and an argument such as -NoProfile there would hide an agent kept in a
+    /// profile function from detection.
+    /// </summary>
+    public string[] ShellArguments { get; set; } = [];
+    /// <summary>The home screen's Folders card was closed with its X: it shows no more, and Add folders stays on the Folders panel.</summary>
+    public bool FoldersCardClosed { get; set; }
+    /// <summary>
     /// Whether the status bar shows the plan limits of Claude and Codex while one of their panes runs (docs/decisions/usage-limits.md),
     /// and Claude Code is started with SIC as its status line command to report them. On by default.
     /// </summary>

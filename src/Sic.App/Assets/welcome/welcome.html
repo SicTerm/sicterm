@@ -906,19 +906,19 @@ button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
     const agentsLine = !C.ready
       ? 'Looking for the agents and reading their histories…'
       : have.length
-        ? `<span class="tiles">${have.map(a => tile(a.id)).join('')}</span><b>${esc(listNames(have.map(a => a.name)))}</b> detected, each launched as your own install, unmodified.`
-        : 'No agent found yet. SicTerm looks for <b>Claude Code, Codex, Hermes and OpenCode</b> on PATH; Settings → Agents says where it looked, and finds one as soon as it is installed.';
+        ? `<span class="tiles">${have.map(a => tile(a.id)).join('')}</span><b>${esc(listNames(have.map(a => a.name)))}</b> detected. SicTerm runs each one as installed.`
+        : 'No coding agent installed so we will help you get started.';
     const histLine = !C.ready ? '' : C.conversations
       ? `<b>${C.conversations} saved conversation${C.conversations === 1 ? '' : 's'}</b> in ${C.folders} folder${C.folders === 1 ? '' : 's'}, read from the agents' own histories.` + (C.latest ? ` The latest, ${esc(C.latest.when)}: <b>${esc(C.latest.title)}</b>, in <span class="m">${esc(C.latest.folder)}</span>.` : '')
-      : 'No saved conversations yet. The first one appears in Sessions as soon as an agent writes it, searchable by title, folder and what was said.';
+      : 'No saved conversations yet. Each one shows in Sessions once an agent saves it, searchable by title, folder and text.';
     const pinLine = !C.ready ? '' : C.pinned
-      ? `<b>${C.pinned} workspace${C.pinned === 1 ? '' : 's'} from your history</b>, each with its folder as its home. A workspace's home can take an emoji, a tab color and a sound.`
-      : 'Workspaces group your tabs by project. Once there is history, one is made for each folder used most.';
+      ? `<b>${C.pinned} folder${C.pinned === 1 ? '' : 's'} listed</b>, ${C.pinned === 1 ? "a workspace" : "each a workspace"} of its own. A folder can take an emoji, a color and a sound.`
+      : 'Workspaces group tabs by folder. Add folders sets them up, starting with the folders used most.';
     const line = (ico, text) => text ? `<div class="ln"><span class="ico">${ico}</span><span>${text}</span></div>` : '';
     return `
-      <div class="top">${markSvg(48)}<div>${wordmark(26)}<div class="sub">One window for Claude Code, Codex, Hermes and OpenCode, in the folders you already work in. Close it with ten sessions running; open it with ten sessions waiting.</div></div></div>
+      <div class="top">${markSvg(48)}<div>${wordmark(26)}<div class="sub">One window for Claude Code, Codex, Hermes and OpenCode, organized by folder. Sessions can be resumed after closing and reopening the app.</div></div></div>
       <div class="ctx"><div class="ey">On this PC</div>${line(ICO.agents, agentsLine)}${line(ICO.list, histLine)}${line(ICO.pin, pinLine)}</div>
-      <div class="btns"><button type="button" class="btn primary" id="tour">Show me around <span class="k">2 min</span></button><button type="button" class="btn" id="start">Start</button><button type="button" class="link" id="again">Replay</button></div>
+      <div class="btns"><button type="button" class="btn" id="again">Watch the demo</button><button type="button" class="btn" id="tour">Take the tour</button><button type="button" class="btn primary" id="start">Start using SicTerm</button></div>
       <div class="foot">Replay any time from Settings → About → Welcome tour. Esc closes this card.</div>`;
   }
   function finish() {
@@ -930,7 +930,7 @@ button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
     card.querySelector('#again').onclick = () => { play(); clock.playing = true; };
     card.querySelector('#start').onclick = () => post({ type: 'start' });
     card.querySelector('#tour').onclick = () => post({ type: 'tour' });
-    setTimeout(() => { const b = card.querySelector('#tour'); if (b) b.focus({ preventScroll: true }); }, 350);
+    setTimeout(() => { const b = card.querySelector('#start'); if (b) b.focus({ preventScroll: true }); }, 350);
     if (fresh) post({ type: 'card' });
   }
   // Skip, Esc or a click: the frame the film ends on, the next launch's resumed window, then the card.
@@ -1060,7 +1060,9 @@ button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
   }
   if (host) host.addEventListener('message', event => {
     const m = event.data || {};
-    if (m.type === 'init') { if (m.theme) { hostTheme = m.theme; applyTheme(m.theme); } if (!scrub) play(); }
+    if (m.type === 'init') { if (m.theme) { hostTheme = m.theme; applyTheme(m.theme); } if (!scrub) { resetFilm(); jumpToEnd(); finish(); } }
+    // The card first (Chris, November 27, 2026): Watch the demo plays the film, which ends on the card; the tour comes back to it with 'card'.
+    else if (m.type === 'card') { if ($('card').hidden) jumpToEnd(); finish(); }
     else if (m.type === 'context') { C = { ...C, ...m }; if (!$('card').hidden) finish(); }
     else if (m.type === 'skip') skipToEnd();
     else if (m.type === 'replay') play();
@@ -1068,7 +1070,7 @@ button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
   addEventListener('keydown', e => {
     if (scrub && scrubKeys(e)) return;
     if (e.key === 'Escape') { e.preventDefault(); if (!$('card').hidden) post({ type: 'start' }); else skipToEnd(); }
-    else if (e.key === 'Enter' && !$('card').hidden && document.activeElement && document.activeElement.tagName !== 'BUTTON') { e.preventDefault(); post({ type: 'tour' }); }
+    else if (e.key === 'Enter' && !$('card').hidden && document.activeElement && document.activeElement.tagName !== 'BUTTON') { e.preventDefault(); post({ type: 'start' }); }
   });
   $('film').addEventListener('click', () => { if (scrub) togglePlay(); else if ($('card').hidden) skipToEnd(); });
   fit();

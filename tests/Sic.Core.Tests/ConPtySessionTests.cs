@@ -7,8 +7,7 @@ namespace Sic.Core.Tests;
 
 public sealed class ConPtySessionTests(Xunit.Abstractions.ITestOutputHelper testOutput)
 {
-    private static readonly string PowerShell = Environment.GetEnvironmentVariable("COMMAND_CENTRAL_PWSH")
-        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PowerShell", "7", "pwsh.exe");
+    private static string PowerShell => TestShells.PowerShell;
 
     [Fact]
     public async Task Start_RunsInTheRequestedWorkingDirectory()
@@ -192,9 +191,10 @@ public sealed class ConPtySessionTests(Xunit.Abstractions.ITestOutputHelper test
     [Fact]
     public async Task Dispose_StopsDetachedDescendantsOfThisSession()
     {
+        // Written for Windows PowerShell 5.1 as well, whose .NET Framework has neither Environment.ProcessPath nor ArgumentList.
         const string script = "$start = [Diagnostics.ProcessStartInfo]::new(); " +
-            "$start.FileName = [Environment]::ProcessPath; $start.UseShellExecute = $false; $start.CreateNoWindow = $true; " +
-            "foreach ($arg in @('-NoLogo','-NoProfile','-NonInteractive','-Command','Start-Sleep -Seconds 45')) { $start.ArgumentList.Add($arg) }; " +
+            "$start.FileName = (Get-Process -Id $PID).Path; $start.UseShellExecute = $false; $start.CreateNoWindow = $true; " +
+            "$start.Arguments = '-NoLogo -NoProfile -NonInteractive -Command \"Start-Sleep -Seconds 45\"'; " +
             "$child = [Diagnostics.Process]::Start($start); [Console]::WriteLine(('CHILD:{0}:READY' -f $child.Id)); $null = [Console]::ReadLine()";
         await using var session = ConPtySession.Start(new TerminalLaunchRequest(PowerShell,
             ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], AppContext.BaseDirectory));

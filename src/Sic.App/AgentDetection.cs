@@ -45,20 +45,14 @@ internal sealed record DetectedAgent(string Id, bool Available, string? Path, st
 
 internal static class AgentDetection
 {
-    internal static string PowerShellPath
-    {
-        get
-        {
-            var standard = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PowerShell", "7", "pwsh.exe");
-            if (File.Exists(standard)) return standard;
-            foreach (var folder in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries))
-            {
-                var path = System.IO.Path.Combine(folder.Trim('"'), "pwsh.exe");
-                if (File.Exists(path)) return System.IO.Path.GetFullPath(path);
-            }
-            throw new FileNotFoundException("PowerShell 7 (pwsh.exe) was not found.");
-        }
-    }
+    /// <summary>
+    /// The PowerShell every pane, agent launch and tool detection runs in: PowerShell 7 (pwsh.exe) where it is installed, in
+    /// its standard folder or on PATH, otherwise the Windows PowerShell 5.1 that comes with Windows, from System32 by its full
+    /// path so a powershell.exe elsewhere on PATH is never the one taken. A Store install on a fresh Windows 11 has no pwsh
+    /// (seen November 26, 2026), and every script SicTerm runs in the shell is written to run in both.
+    /// </summary>
+    internal static string PowerShellPath => Sic.Core.Shell.PowerShellLocator.Find()
+        ?? throw new FileNotFoundException("Neither PowerShell 7 (pwsh.exe) nor Windows PowerShell (powershell.exe) was found.");
 
     internal static async Task<IReadOnlyList<DetectedAgent>> ProbeAsync(IEnumerable<AgentDefinition> agents)
     {
@@ -68,7 +62,10 @@ internal static class AgentDetection
         // The command as PowerShell resolves it, with the user's profile loaded, so a tool wrapped in a profile function counts.
         // An alias is followed to its target; a file an Application, a script or an alias names must exist, or the tool is not
         // there (a stale alias or a PATH stub answers Get-Command and would otherwise pass for an install).
-        var script = "$rows=@(foreach($definition in @(" + definitions + ")) { " +
+        // UTF-8 without a BOM: redirected, PowerShell writes in the OEM code page, which garbles a path with a character outside
+        // it, and a BOM would sit in front of the marker when nothing is printed before it.
+        var script = "[Console]::OutputEncoding=New-Object System.Text.UTF8Encoding $false; " +
+            "$rows=@(foreach($definition in @(" + definitions + ")) { " +
             "$command=Get-Command -Name $definition.Command -ErrorAction SilentlyContinue | Select-Object -First 1; " +
             "$program=Get-Command -Name $definition.Command -CommandType Application,ExternalScript -ErrorAction SilentlyContinue | Select-Object -First 1; " +
             "$target=$command; if ($command -is [System.Management.Automation.AliasInfo]) { $target=$command.ResolvedCommand }; " +

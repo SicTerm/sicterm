@@ -38,10 +38,10 @@ Building needs Windows 11 with these installed:
 ```powershell
 winget install Microsoft.DotNet.SDK.10
 winget install OpenJS.NodeJS.LTS
-winget install Microsoft.PowerShell --source winget --installer-type wix
+winget install Microsoft.PowerShell --source winget
 ```
 
-The .NET SDK version is pinned in [`global.json`](global.json). PowerShell 7 must be installed in `C:\Program Files\PowerShell\7`, because the terminal tests start it from there. Visual Studio is not needed. From the repository root, in PowerShell 7:
+The .NET SDK version is pinned in [`global.json`](global.json). PowerShell 7 can come from winget, the Microsoft Store, the MSI or a ZIP: the terminal tests find it as SicTerm does, under Program Files or on PATH. `COMMAND_CENTRAL_PWSH` points them at another shell instead, such as Windows PowerShell 5.1. Visual Studio is not needed. From the repository root, in PowerShell 7:
 
 ```powershell
 npm ci --prefix .\src\terminal

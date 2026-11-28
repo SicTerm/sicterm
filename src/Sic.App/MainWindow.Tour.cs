@@ -155,6 +155,7 @@ internal sealed partial class MainWindow
         _tourLayer.Visibility = Visibility.Collapsed;
         _dialogsOpen = Math.Max(0, _dialogsOpen - 1); UpdateDragRegions();
         if (_activePane is { } pane) pane.FocusInput();
+        ReturnToWelcomeCard();
     }
 
     private Rect RootCentre() => new(_root.ActualWidth / 2, _root.ActualHeight / 2, 0, 0);
@@ -225,25 +226,21 @@ internal sealed partial class MainWindow
 
     private List<TourStop> BuildTourStops()
     {
-        var hidden = HiddenAgents();
-        int conversations;
-        try { conversations = _catalog.Count(hidden); } catch (Exception) { conversations = 0; }
+        // Wording reviewed with Chris, November 27, 2026. On a PC with no tab open, the stops about tabs and panes point at nothing
+        // rather than at the nearest control (they had framed New session and the home screen), and sit in the middle.
+        var agent = _detection.Values.Any(found => found.Available);
         var folders = Folders.Count;
         return
         [
             new("Any agent, any folder",
-                "New session starts Claude Code, Codex, Hermes, OpenCode or PowerShell in a folder you choose, each as your own install. Ctrl+Shift+T opens it from anywhere, and File Explorer's right-click menu has Open in SicTerm.",
+                "New session starts an agent or PowerShell in any folder. Ctrl+Shift+T opens it from anywhere, and File Explorer's right-click menu has Open in SicTerm.",
                 () => _railItems["new"].Button),
             new("Every saved conversation",
-                (conversations > 0 ? $"Sessions lists every saved conversation on this PC, {conversations} so far, read from the agents' own histories."
-                    : "Sessions lists every saved conversation on this PC, read from the agents' own histories, as soon as there is one.")
-                + " Ctrl+Shift+K searches titles, folders and transcripts. A double-click resumes one exactly where it left off, and its pin keeps it on top.",
+                "Sessions lists every saved conversation on this PC, read from the agents' own histories. Ctrl+Shift+K searches titles, folders and text. A double-click resumes one where it left off; its pin keeps it at the top.",
                 () => _history,
                 Enter: async () => { OpenPanel("sessions", persist: false); await Task.Delay(320); PulseFirstRowPin(); }),
-            new(folders > 0 ? "Your folders and workspaces" : "Folders and workspaces",
-                (folders > 0 ? $"Folders lists the folders you work in, {(folders == 1 ? "one from your history" : folders + " from your history")} already, and sessions start from any folder in them."
-                    : "Folders lists the folders you work in: Add Folder puts one in, and a row dragged up or down puts the list in order. Sessions start from any folder in them.")
-                + " Each folder is a workspace of its name, the tabs of its sessions with a strip of their own; the name at the head of the strip says which is showing, and a click on it switches (Ctrl+Shift+A).",
+            new("Folders and workspaces",
+                "Each listed folder is a workspace with its own tabs. This list switches between them, as does Ctrl+Shift+A. The Folders panel adds folders and puts them in order.",
                 () => _workspaceRows.TryGetValue(_workspace.Id, out var view) ? view.Row : _workspaceList,
                 Enter: async () =>
                 {
@@ -251,8 +248,8 @@ internal sealed partial class MainWindow
                     if (_workspaceRows.TryGetValue(_workspace.Id, out var view)) _ = PulseAsync(_tourIndex, view.Fold);
                 }),
             new("A tab, resumed or waiting",
-                "A tab is one conversation in its folder. After a restart every tab comes back like this, a placeholder holding its saved transcript, and nothing runs until Resume. F5 resumes them all, and the rail's Resume all button is lit whenever something waits.",
-                () => _open.Count > 0 ? _tabs : _welcome,
+                "A tab is one conversation. After a restart each tab comes back paused, with its transcript, and nothing runs until Resume. F5 resumes them all.",
+                () => _open.Count > 0 ? _tabs : null,
                 Enter: async () =>
                 {
                     if (_open.Count > 0 || LatestConversation() is not { } latest) return;
@@ -260,22 +257,30 @@ internal sealed partial class MainWindow
                     await Task.Delay(250);
                 }),
             new("Split, drag, tile",
-                "Split a pane right or down from its header, up to 16 panes in a tab. Drag a tab from the strip into another tab's pane, or a pane by its header, and the accent mark shows where it lands. F6 gathers tabs that share a folder into one.",
-                () => SelectedHost is { Panes.Count: > 0 } host ? FocusedPane(host).SplitButton : _railItems["new"].Button,
+                "A pane's header splits it right or down, up to 16 panes per tab. Dragging a tab or a pane's header moves it, and the accent mark shows where it lands. F6 gathers tabs in the same folder into one.",
+                () => SelectedHost is { Panes.Count: > 0 } host ? FocusedPane(host).SplitButton : null,
                 Enter: async () => { await Task.Delay(120); ShowTourDropMark(); },
                 Leave: () => SelectedHost?.Content.HideDrop()),
             new("Limits and context, in view",
-                "While an agent runs, its plan's 5-hour and weekly windows show here, green, amber or red by pace, and each pane's header shows the model and how full its context window is. All of it is read from what the agents write, never from a credential. Settings → Agents turns it off.",
+                "While an agent runs, its plan's 5-hour and weekly limits show here, colored by pace. Each pane's header shows the model and how full its context is. SicTerm reads this from the agents' own files, never a credential. Settings → Agents turns it off.",
                 () => _limitsPanel,
                 Enter: async () => { PreviewLimits(true); await Task.Delay(120); },
                 Leave: () => PreviewLimits(false)),
             new("Full screen, and every key",
-                "F11 fills this display with the sessions; the rail and the panel come back at the window's edge. F1 lists every key. Closing the window keeps everything running in the tray, and Quit asks each agent to exit cleanly first.",
-                () => _tabs),
-            new("Over to you",
-                "Three things to try now. Ctrl+Shift+T starts a session in a folder you choose. Ctrl+Shift+K finds any saved conversation. And tomorrow morning, F5. Settings → About replays the welcome and this tour.",
-                () => null,
-                Next: "Start using SicTerm"),
+                "F11 goes full screen, and F1 lists every shortcut. Closing the window keeps sessions running in the tray; Quit asks each agent to exit cleanly first.",
+                () => _open.Count > 0 ? _tabs : null),
+            // The last stop says what to do next on this PC (Chris: "make sure they know what they need to do next").
+            !agent
+                ? new("Next: install a coding agent",
+                    "\"Get set up\" installs one. Then New session (Ctrl+Shift+T) starts it in any folder.",
+                    () => null, Next: "Done")
+                : folders == 0
+                    ? new("Next: add folders",
+                        "\"Add folders\" lists the folders used most, ready to tick. Then New session (Ctrl+Shift+T) starts an agent in any of them.",
+                        () => null, Next: "Done")
+                    : new("Ready",
+                        "New session (Ctrl+Shift+T) starts an agent in any folder. Ctrl+Shift+K finds any saved conversation, and F5 resumes everything waiting after a restart.",
+                        () => null, Next: "Done"),
         ];
     }
 

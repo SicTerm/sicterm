@@ -256,9 +256,13 @@ internal sealed partial class MainWindow : Window
                 // waits for the one under way below, so this runs alongside it rather than after it.
                 ResumeRestoredSessions();
                 // A first run: the film plays over the tab area while detection and the refresh run; its card waits for their facts.
+                WatchSetupNotice();
+                if (_options.SetupGaps is { } standIn) SetupGapsOverride = standIn;
                 if (WelcomeDue) _ = ShowWelcomeAsync();
                 await Task.WhenAll(DetectToolsAsync(), RefreshHistoryAsync());
                 SendWelcomeContext();
+                // No PowerShell 7 or no agent: said once detection has answered, after the welcome (MainWindow.Setup.cs).
+                ShowSetupNoticeAtLaunch();
                 StartUpdateChecks();
                 FollowShellTone();
                 // Started by Open in SIC: the dialog, or the session, once detection has said which agents are here and the layout is back.
@@ -295,6 +299,10 @@ internal sealed partial class MainWindow : Window
         var hermesHome = Environment.GetEnvironmentVariable("HERMES_HOME");
         if (string.IsNullOrWhiteSpace(hermesHome)) hermesHome = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "hermes");
         var preferences = new AppPreferences { Agents = BuiltInAgents.Create(home, hermesHome).ToList() };
+        // The first run's theme follows Windows' app mode (Settings → Personalization → Colors): SicTerm Light in light mode,
+        // SicTerm Dark in dark (Chris, November 27, 2026). Chosen once, with the settings file; a theme picked later stays.
+        // The smoke keeps the dark default its checks are written for.
+        if (!_options.SmokeTest && WindowsAppsLight()) preferences.Theme = "sic-light";
         // No folders on a first run: a workspace's home is only what the user sets, since no folder exists on every machine. The
         // smoke seeds the folder list a settings file kept before November 8, 2026, which the first launch adopts as the first
         // workspace's home (Workspaces.Adopt), so the merge's one-time read is exercised.
@@ -302,6 +310,13 @@ internal sealed partial class MainWindow : Window
         if (_options.SmokeTest)
             preferences.Agents = preferences.Agents.Select(agent => agent with { HistoryDirectory = Path.Combine(_options.DataDirectory, "fixtures", agent.Id), Enabled = true }).ToList();
         return preferences;
+    }
+
+    /// <summary>Whether Windows' apps are in light mode, as File Explorer's menus read it; dark when the setting cannot be read.</summary>
+    private static bool WindowsAppsLight()
+    {
+        try { return ShellIcons.LightMenus(); }
+        catch (Exception exception) when (exception is System.Security.SecurityException or UnauthorizedAccessException or IOException) { return false; }
     }
 
     private void BuildShell()
@@ -910,6 +925,7 @@ internal sealed partial class MainWindow : Window
         var stack = new StackPanel { Spacing = 8, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, MaxWidth = 480 };
         var mark = SicMark.Create(96, () => _theme.Base.Color); mark.Margin = new Thickness(0, 0, 0, 8);
         stack.Children.Add(mark);
+        _homeMark = mark; _homeStack = stack;
         var name = SicMark.Wordmark(_theme, 40); name.HorizontalAlignment = HorizontalAlignment.Center;
         stack.Children.Add(name);
         // The tagline About carries, on two lines under the name (Chris, October 18, 2026).
@@ -921,6 +937,13 @@ internal sealed partial class MainWindow : Window
                 FontWeight = new Windows.UI.Text.FontWeight { Weight = 600 }, HorizontalAlignment = HorizontalAlignment.Center
             });
         stack.Children.Add(tagline);
+        _homeTagline = tagline;
+        // Get set up, while the PC lacks PowerShell 7 or an agent (MainWindow.Setup.cs): the panel takes the mark's and the tagline's room.
+        _setupHomeSlot = new Border();
+        stack.Children.Add(_setupHomeSlot);
+        // Then the Folders card, while the list is empty and Get set up has nothing to show (MainWindow.FolderWizard.cs).
+        _foldersHomeSlot = new Border();
+        stack.Children.Add(_foldersHomeSlot);
         // No line of explanation under the name: the buttons say what to do (Chris, October 19, 2026; rotating tips may come later).
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 12, 0, 0) };
         var create = _theme.PrimaryButton("New session", "Ctrl+Shift+T");
@@ -929,7 +952,8 @@ internal sealed partial class MainWindow : Window
         sessions.Click += (_, _) => OpenPanel("sessions");
         actions.Children.Add(create); actions.Children.Add(sessions);
         stack.Children.Add(actions);
-        host.Children.Add(stack);
+        // The panel can be taller than a small window: the column scrolls then, and is centred otherwise.
+        host.Children.Add(new ScrollViewer { Content = stack, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Padding = new Thickness(24, 12, 24, 12) });
         return host;
     }
 
@@ -1222,13 +1246,17 @@ internal sealed partial class MainWindow : Window
 
     private void ShowError(string text) => Notify(InfoBarSeverity.Error, "That did not work", text);
 
-    private void ShowNotice(InfoBarSeverity severity, string title, string message, Microsoft.UI.Xaml.Controls.Primitives.ButtonBase? action, bool brief)
+    /// <summary><paramref name="content"/> goes under the message (the setup notice's links); every other notice takes it away.</summary>
+    private void ShowNotice(InfoBarSeverity severity, string title, string message, Microsoft.UI.Xaml.Controls.Primitives.ButtonBase? action, bool brief, UIElement? content = null)
     {
+        // The setup notice pushed aside comes back when this one goes (MainWindow.Setup.cs): "Agent turned on" had taken its
+        // place for good in a Windows Sandbox run (November 27, 2026).
+        if (SetupNoticeShown) _setupNoticeDue = true;
         var generation = ++_noticeGeneration;
         StopNoticeMotion();
         // A notice already up changes its text where it is; one on its way down comes back up from where it got to.
         var resting = _notice.IsOpen ? _noticeSlide.Y : (double?)null;
-        _notice.Severity = severity; _notice.Title = title; _notice.Message = message; _notice.ActionButton = action;
+        _notice.Severity = severity; _notice.Title = title; _notice.Message = message; _notice.ActionButton = action; _notice.Content = content;
         LastNotice = (severity, title, message, brief);
         _notice.IsOpen = true;
         _ = SlideNoticeAsync(generation, brief, resting);

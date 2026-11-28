@@ -67,7 +67,7 @@ internal sealed partial class MainWindow
     /// The Folders panel: a line of tools at the top right (Sort and Add Folder), then a row per listed folder with its tree, each
     /// row dragged to put the list in order. The panel's own title names it, so the list carries no header, and no description under
     /// it. A history button sat before Add folder until November 9, 2026, adding the folders used most; Chris found it confusing
-    /// once the list was set up, and the first run's suggestions (<see cref="FirstSuggestionsAsync"/>) are what is left of it.
+    /// once the list was set up; the history's suggestions are now Add folders' (MainWindow.FolderWizard.cs).
     /// </summary>
     private UIElement BuildFoldersPanel()
     {
@@ -79,9 +79,11 @@ internal sealed partial class MainWindow
         AutomationProperties.SetName(sort, "Sort");
         sort.Flyout = FolderSortMenu();
         tools.Children.Add(sort);
-        var add = _theme.IconButton(NewFolderGlyph, "Add Folder", 28, 13);
-        AutomationProperties.SetName(add, "Add Folder");
-        add.Click += async (_, _) => await AddFolderFromPickerAsync();
+        // Add folders: the popup that adds several at once, each with a color and an emoji (MainWindow.FolderWizard.cs); it picked one
+        // folder straight from Windows' picker until November 27, 2026.
+        var add = _theme.IconButton(NewFolderGlyph, "Add folders", 28, 13);
+        AutomationProperties.SetName(add, "Add folders");
+        add.Click += async (_, _) => await ShowFolderWizardAsync();
         tools.Children.Add(add);
         grid.Children.Add(tools);
         // A folder made in File Explorer shows up once SIC's window is back in front (RefreshOpenFolders; the panel's opening is the other moment).
@@ -443,20 +445,13 @@ internal sealed partial class MainWindow
         return chosen;
     }
 
-    /// <summary>
-    /// The first run of folders from the history, once, after the first history refresh that succeeds on this PC (so after
-    /// install, or after the update that brought it). It says what it added only when it added something. Not in the smoke or a
-    /// restore check, whose fixtures decide their own folders.
-    /// </summary>
-    private async Task FirstSuggestionsAsync()
+    /// <summary>After each history refresh that read an agent: the home screen's Folders card in step with it.</summary>
+    private Task FirstSuggestionsAsync()
     {
-        if (_preferences.AutoPinsDone || _options.SmokeTest || _options.RestoreOnly) return;
-        _preferences.AutoPinsDone = true;
-        SavePreferences();
-        var chosen = await AddFoldersFromHistoryAsync(quiet: true);
-        if (chosen.Count > 0)
-            NotifyBriefly(chosen.Count == 1 ? "1 folder from your history" : $"{chosen.Count} folders from your history",
-                string.Join(", ", chosen.Select(Paths.Leaf)) + ".");
+        // It added the folders used most by itself until November 27, 2026: Add folders now offers them, ticked, and the person
+        // decides (Chris). The home screen's Folders card waits for the history, which this follows.
+        RefreshFoldersCard();
+        return Task.CompletedTask;
     }
 
     /// <summary>

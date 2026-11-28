@@ -14,10 +14,13 @@ namespace Sic.App;
 /// <see cref="Isolated"/> says the data folder was given on the command line, as the smoke and review scripts do: such a copy
 /// never touches the Explorer menu, which belongs to the SIC of the default folder. <see cref="Measure"/>
 /// (<c>--measure-hidden-output</c>) runs the hidden-page measurement instead of the smoke (MainWindow.Measure.cs), with the
-/// smoke's isolation.
+/// smoke's isolation. <see cref="WithoutIdentity"/> (<c>--without-identity</c>) tells the smoke the build left out the Explorer
+/// command DLL and the signed identity package on purpose (Publish-App.ps1 -SkipIdentity), so it does not check them. <see cref="SetupGaps"/>
+/// (<c>--setup-gaps both|powershell|agent</c>) has the run stand in for a PC without PowerShell 7, without an agent, or without
+/// either, so Get set up (MainWindow.Setup.cs) can be looked at on a PC that has them; nothing is uninstalled or hidden.
 /// </summary>
 internal sealed record StartupOptions(bool SmokeTest, string DataDirectory, string? ReportPath, bool RestoreOnly = false, bool MigrateLegacyState = false, bool Quit = false,
-    Sic.Core.Shell.OpenRequest? Open = null, bool Isolated = false, OutputMeasure? Measure = null)
+    Sic.Core.Shell.OpenRequest? Open = null, bool Isolated = false, OutputMeasure? Measure = null, bool WithoutIdentity = false, Sic.Core.Shell.SetupGap? SetupGaps = null)
 {
     /// <summary>Never the package id (SicTerm): that names the install folder in %LOCALAPPDATA%, which an uninstall deletes (docs/decisions/installer.md).</summary>
     internal const string DataFolderName = "SuperIntelligentChat";
@@ -28,6 +31,8 @@ internal sealed record StartupOptions(bool SmokeTest, string DataDirectory, stri
         var smokeTest = false;
         var restoreOnly = false;
         var quit = false;
+        var withoutIdentity = false;
+        Sic.Core.Shell.SetupGap? setupGaps = null;
         var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), DataFolderName);
         var explicitDirectory = false;
         string? report = null, openFolder = null, openAgent = null;
@@ -48,6 +53,8 @@ internal sealed record StartupOptions(bool SmokeTest, string DataDirectory, stri
                 case "--data-dir" when index + 1 < arguments.Length: directory = Path.GetFullPath(arguments[++index]); explicitDirectory = true; break;
                 case "--report" when index + 1 < arguments.Length: report = Path.GetFullPath(arguments[++index]); break;
                 case "--quit": quit = true; break;
+                case "--without-identity": withoutIdentity = true; break;
+                case "--setup-gaps" when index + 1 < arguments.Length && Enum.TryParse<Sic.Core.Shell.SetupGap>(arguments[index + 1], ignoreCase: true, out var gaps): setupGaps = gaps; index++; break;
                 // Explorer hands a drive over as "C:\" and a folder without its trailing separator; both are kept as given, made full.
                 case "--open" when index + 1 < arguments.Length: openFolder = Path.GetFullPath(arguments[++index]); break;
                 case "--agent" when index + 1 < arguments.Length: openAgent = arguments[++index]; break;
@@ -61,7 +68,7 @@ internal sealed record StartupOptions(bool SmokeTest, string DataDirectory, stri
             || measure.BurstMegabytes is < 0 or > 1000 || measure.BurstAfterSeconds < 0))
             throw new ArgumentException("--measure-hidden-output needs --data-dir, a rate from 1 to 100000 KB/s, a burst of at most 1000 MB and no negative times, and is not a restore check.");
         return new StartupOptions(smokeTest, directory, report, restoreOnly, MigrateLegacyState: !explicitDirectory && !smokeTest && !quit, Quit: quit,
-            Open: openFolder is null ? null : new Sic.Core.Shell.OpenRequest(openFolder, openAgent), Isolated: explicitDirectory, Measure: measure);
+            Open: openFolder is null ? null : new Sic.Core.Shell.OpenRequest(openFolder, openAgent), Isolated: explicitDirectory, Measure: measure, WithoutIdentity: withoutIdentity, SetupGaps: setupGaps);
     }
 
     /// <summary>

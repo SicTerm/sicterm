@@ -333,7 +333,7 @@ internal sealed partial class MainWindow
                 && _taskbarIconSize == ShellIcons.TaskbarButtonSize() && _taskbarIcon != 0
                 && _titleBarIconSize == ShellIcons.SmallIconSize(WinRT.Interop.WindowNative.GetWindowHandle(this)) && _titleBarIcon != 0
                 && railFrame > 0 && (railFrame == railPixels || !icoFrames.Contains(railPixels)) && railTone
-                && _welcome.Children[0] is StackPanel welcome && FullMark(welcome.Children[0]) && SicMark.LightArt(welcome.Children[0]) == SicMark.IsLightSurface(_theme.Base.Color)
+                && _homeStack is { } welcome && FullMark(welcome.Children[0]) && SicMark.LightArt(welcome.Children[0]) == SicMark.IsLightSurface(_theme.Base.Color)
                 && _railItems["resume"].Button.Content is Grid resumeContent && resumeContent.Children.OfType<Viewbox>().Any() && !resumeContent.Children.OfType<FontIcon>().Any();
             if (!brandMark) throw new InvalidOperationException($"The mark, the tray, taskbar or title-bar icon, or the Resume all glyph was not in place: ico frames [{string.Join(", ", icoFrames)}], light-taskbar ico frames [{string.Join(", ", lightIcoFrames)}], tray icon {_tray?.IconSize ?? 0} px, taskbar icon {_taskbarIconSize} px, title-bar icon {_titleBarIconSize} px, rail mark frame {railFrame} px for {railPixels} px on screen, rail mark in its rail's set {railTone}.");
 
@@ -2586,6 +2586,195 @@ internal sealed partial class MainWindow
             var switchedOn = SavedSwitch("opencode") == true && _agentRows["opencode"].Identity.Opacity == 1;
             if (tabPages.Any(page => page.EndsWith(":False", StringComparison.Ordinal)) || !agentsPageHasEveryAgent || !aboutPageHasUpdates || !switchedOff || !switchedOn)
                 throw new InvalidOperationException($"The Settings tabs did not each show their page: {string.Join(", ", tabPages)} agents={agentsPageHasEveryAgent} about={aboutPageHasUpdates} switch off={switchedOff} on={switchedOn}.");
+            // Getting set up (MainWindow.Setup.cs; November 27, 2026), on gaps this run stands in for, since the smoke's PC has
+            // PowerShell 7 and the fixture agents. The launch notice is one sentence with a Set up button; the home panel has a row
+            // for PowerShell 7 and each agent with Install, or Start a session once found; each agent card in Settings that was not
+            // found has Install, and the PowerShell card says which shell runs and offers Install while 7 is missing; Install opens
+            // a popup with the vendor's command. A gap that goes leaves the notice; its X closes its gaps at launch only; another
+            // notice only borrows its place; the installed notice offers Start a session and says where the other agents are;
+            // Claude Code off Path has Add to PATH, which adds the one folder to the end of a Path value and leaves the rest as
+            // written (on a scratch key here, never the account's own).
+            var setupClosedBefore = (Launch: _preferences.SetupClosedAtLaunch, Home: _preferences.SetupClosedOnHome);
+            _notice.IsOpen = false; LastNotice = null;
+            _preferences.SetupClosedAtLaunch = _preferences.SetupClosedOnHome = SetupGap.None;
+            bool setupNotice;
+            string setupImage = Path.Combine(data, "setup-notice-native.png");
+            string setupPopupImage = Path.Combine(data, "setup-popup-native.png");
+            var setupScratchKey = @"Software\SicTermSmoke-" + Guid.NewGuid().ToString("N");
+            try
+            {
+                string Said(SetupGap gaps) => SetupAdvisor.For(gaps)!.Message;
+                if (_open.Count == 0) throw new InvalidOperationException("The setup checks expect a tab open: with none, the home screen's panel stands in for the notice.");
+                ClaudeOffPathOverride = false;
+                SetupGapsOverride = SetupGap.Both;
+                ShowSetupNotice();
+                var setupBoth = SetupNoticeShown && _notice.Message == Said(SetupGap.Both) && _notice.Title == "" && _notice.Content is null
+                    && _notice.ActionButton is Button { Content: "Set up" };
+                ShowSettingsTab(SettingsTabs.Agents);
+                RefreshSetupAdvice();
+                // The home panel is built for the same gaps, though a tab covers it here: every row with Install alone.
+                var setupRowsBoth = SetupRowFacts() is { Count: 5 } rows && rows.All(row => row.Visible && row.Status == "Not found" && row.Buttons.SequenceEqual(["Install"]))
+                    && rows.Select(row => row.Id).SequenceEqual(["powershell", "claude", "codex", "hermes", "opencode"]) && !SetupHomeShown;
+                // Settings: Install on every agent card, and the PowerShell card on 5.1 with Install.
+                var setupCards = await EventuallyAsync(() => _agentRows.Values.All(row => row.Install.Visibility == Visibility.Visible && row.AddPath.Visibility == Visibility.Collapsed)
+                    && ShellCardFacts is { Install: true, Status: "Windows PowerShell 5.1" } shellCard && shellCard.Arguments == JsonSerializer.Serialize(_preferences.ShellArguments));
+                await Task.Delay(150);
+                await CaptureAsync(_root, setupImage);
+                // Claude Code's Install: the popup with the vendor's command; closed with nothing typed.
+                var claudeItem = SetupCatalog.Item("claude")!;
+                var popupTask = ShowInstallAsync(claudeItem);
+                var setupPopup = await EventuallyAsync(() => InstallPopup is { Id: "claude", Command: "irm https://claude.ai/install.ps1 | iex", Primary: "Install" } popup
+                    && popup.Dialog.SecondaryButtonText == "Install page");
+                await Task.Delay(300);
+                if (InstallPopup is { } shown)
+                {
+                    try { await CaptureAsync(shown.Dialog, setupPopupImage); } catch (Exception exception) when (exception is not OutOfMemoryException) { Diagnostics.Log("smoke popup capture: " + exception.Message); }
+                    shown.Dialog.Hide();
+                }
+                await popupTask.WaitAsync(TimeSpan.FromSeconds(10));
+                setupPopup = setupPopup && InstallPopup is null && SetupInstalls.Count == 0;
+                // No winget: PowerShell 7's popup leads with winget's command, and winget found offers PowerShell 7's popup next.
+                SetupWingetOverride = false;
+                var wingetTask = ShowInstallAsync(SetupCatalog.Item(SetupCatalog.PowerShell)!);
+                var wingetPopup = await EventuallyAsync(() => InstallPopup is { Id: SetupCatalog.PowerShell, Primary: "Install winget" } popup
+                    && popup.Command == SetupCatalog.WingetCommand && popup.Dialog.SecondaryButtonText == "PowerShell 7's page");
+                await Task.Delay(300);
+                if (InstallPopup is { } wingetShown)
+                {
+                    try { await CaptureAsync(wingetShown.Dialog, Path.Combine(data, "winget-popup-native.png")); } catch (Exception exception) when (exception is not OutOfMemoryException) { Diagnostics.Log("smoke winget popup capture: " + exception.Message); }
+                    wingetShown.Dialog.Hide();
+                }
+                await wingetTask.WaitAsync(TimeSpan.FromSeconds(10));
+                wingetPopup = wingetPopup && InstallPopup is null && SetupInstalls.Count == 0;
+                SetupWingetOverride = null;
+                if (!wingetPopup) Diagnostics.Log("smoke: the winget popup or its notice was not as laid out");
+                setupPopup = setupPopup && wingetPopup;
+                // An agent found: the notice says PowerShell alone, the home rows of the agents found offer Start a session, their cards lose Install.
+                SetupGapsOverride = SetupGap.PowerShell;
+                RefreshSetupAdvice();
+                var followed = SetupRowFacts();
+                var setupFollowed = SetupNoticeShown && _notice.Message == Said(SetupGap.PowerShell) && followed[0] is { Status: "Not found" } && followed[0].Buttons.SequenceEqual(["Install"])
+                    && followed.Skip(1).All(row => _detection.GetValueOrDefault(row.Id)?.Available != true || row.Buttons.SequenceEqual(["Start a session"]))
+                    && _preferences.Agents.All(agent => !_agentRows.TryGetValue(agent.Id, out var card) || (card.Install.Visibility == Visibility.Visible) == (_detection.GetValueOrDefault(agent.Id)?.Available != true));
+                // The X at launch: PowerShell's gap is not shown at launch again, and is saved.
+                CloseSetupNotice();
+                _notice.IsOpen = false;
+                ShowSetupNotice();
+                var setupClosedAtLaunch = !_notice.IsOpen && _preferences.SetupClosedAtLaunch == SetupGap.PowerShell
+                    && SavedPreferences(() => new AppPreferences()).SetupClosedAtLaunch == SetupGap.PowerShell;
+                // The agent's gap comes back: the launch notice says it alone.
+                SetupGapsOverride = SetupGap.Both;
+                ShowSetupNotice();
+                RefreshSetupAdvice();
+                var setupAgentAlone = SetupNoticeShown && _notice.Message == Said(SetupGap.Agent);
+                // The home panel's X: closed for the gaps it showed, and saved.
+                CloseSetupPanel();
+                var setupClosedOnHome = _preferences.SetupClosedOnHome == SetupGap.Both && SavedPreferences(() => new AppPreferences()).SetupClosedOnHome == SetupGap.Both;
+                // Nothing missing: the notice goes, with nothing more closed, and the PowerShell card has no Install.
+                SetupGapsOverride = SetupGap.None;
+                RefreshSetupAdvice();
+                var setupGoneWithGap = !_notice.IsOpen && _preferences.SetupClosedAtLaunch == SetupGap.PowerShell && ShellCardFacts is { Install: false };
+                // Installs found: PowerShell 7 says so with nothing to press (no tab here); an agent offers Start a session and says where the others are.
+                ShowInstalled(SetupCatalog.Item(SetupCatalog.PowerShell)!, null);
+                var setupInstalled = _notice.IsOpen && _notice.Message == SetupCatalog.PowerShellInstalled && _notice.Content is null;
+                ShowInstalled(SetupCatalog.Item("codex")!, null);
+                setupInstalled = setupInstalled && _notice.Message == SetupCatalog.AgentInstalled("Codex") && _notice.Content is StackPanel { Children: [Button { Content: "Start a session" }] };
+                // winget found, from PowerShell 7's popup: the notice offers that popup next.
+                ShowInstalled(SetupCatalog.Winget, null, SetupCatalog.Item(SetupCatalog.PowerShell));
+                setupInstalled = setupInstalled && _notice.Message == SetupCatalog.WingetInstalled("PowerShell 7")
+                    && _notice.Content is StackPanel { Children: [Button { Content: "Install PowerShell 7" }] };
+                _notice.IsOpen = false;
+                // Claude Code where its installer put it, its folder off Path: its row and card have Add to PATH.
+                var setupOffPath = true;
+                var setupAdded = true;
+                if (_detection.GetValueOrDefault("claude")?.Available == true)
+                {
+                    ClaudeOffPathOverride = true;
+                    RefreshSetupAdvice();
+                    var offPathRow = SetupRowFacts()[1];
+                    setupOffPath = offPathRow is { Status: "Detected" } && offPathRow.Line == SetupCatalog.ClaudeOffPath && offPathRow.Buttons.SequenceEqual(["Start a session", "Add to PATH"])
+                        && _agentRows["claude"].AddPath.Visibility == Visibility.Visible;
+                    using (var scratch = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(setupScratchKey))
+                        scratch.SetValue("Path", @"%USERPROFILE%\go\bin;C:\tools", Microsoft.Win32.RegistryValueKind.ExpandString);
+                    UserPathKeyOverride = setupScratchKey;
+                    AddClaudeToPath();
+                    var claudeFolder = SetupCatalog.ClaudeFolder(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+                    using (var scratch = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(setupScratchKey)!)
+                        setupAdded = scratch.GetValue("Path", null, Microsoft.Win32.RegistryValueOptions.DoNotExpandEnvironmentNames) as string == @"%USERPROFILE%\go\bin;C:\tools;" + claudeFolder
+                            && scratch.GetValueKind("Path") == Microsoft.Win32.RegistryValueKind.ExpandString && !UserPath.Add(claudeFolder, setupScratchKey)
+                            && _notice.IsOpen && _notice.Message == SetupCatalog.ClaudeOnPathNotice && _notice.Content is StackPanel { Children.Count: 1 };
+                    ClaudeOffPathOverride = false;
+                    RefreshSetupAdvice();
+                }
+                _notice.IsOpen = false; LastNotice = null;
+                // Another notice over the setup notice only borrows its place: when it goes, the setup notice comes back with the
+                // gaps still open, as after "Agent turned on" (a Windows Sandbox run, November 27, 2026).
+                SetupGapsOverride = SetupGap.Agent;
+                ShowSetupNotice();
+                var setupBeforeOther = SetupNoticeShown && _notice.Message == Said(SetupGap.Agent);
+                NotifyBriefly("Smoke", "A notice over the setup notice.");
+                var setupPushedAside = !SetupNoticeShown && _notice.Message == "A notice over the setup notice." && _notice.ActionButton is null;
+                _notice.IsOpen = false;
+                var setupCameBack = setupBeforeOther && setupPushedAside && await EventuallyAsync(() => SetupNoticeShown && _notice.Message == Said(SetupGap.Agent) && _notice.ActionButton is Button);
+                SetupGapsOverride = SetupGap.None;
+                RefreshSetupAdvice();
+                var setupGoneAgain = !_notice.IsOpen;
+                _notice.IsOpen = false; LastNotice = null;
+                setupNotice = setupBoth && setupRowsBoth && setupCards && setupPopup && setupFollowed && setupClosedAtLaunch && setupAgentAlone && setupClosedOnHome && setupGoneWithGap && setupInstalled && setupOffPath && setupAdded && setupCameBack && setupGoneAgain;
+                if (!setupNotice) throw new InvalidOperationException($"Getting set up did not show, follow or close as laid out: both={setupBoth} rows={setupRowsBoth} cards={setupCards} popup={setupPopup} followed={setupFollowed} closedAtLaunch={setupClosedAtLaunch} agentAlone={setupAgentAlone} closedOnHome={setupClosedOnHome} gone={setupGoneWithGap} installed={setupInstalled} offPath={setupOffPath} added={setupAdded} cameBack={setupCameBack} goneAgain={setupGoneAgain}.");
+            }
+            finally
+            {
+                SetupGapsOverride = null; ClaudeOffPathOverride = null; UserPathKeyOverride = null; SetupWingetOverride = null;
+                try { Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(setupScratchKey, throwOnMissingSubKey: false); }
+                catch (Exception exception) when (exception is UnauthorizedAccessException or IOException) { Diagnostics.Log("smoke scratch key: " + exception.Message); }
+                (_preferences.SetupClosedAtLaunch, _preferences.SetupClosedOnHome) = setupClosedBefore;
+                SavePreferences();
+                RefreshSetupAdvice();
+                _notice.IsOpen = false; LastNotice = null;
+                ShowSettingsTab(SettingsTabs.Appearance);
+                await Task.Delay(150);
+            }
+            // Add folders (MainWindow.FolderWizard.cs; November 27, 2026): the popup lists folders with a tick, a color and an emoji,
+            // its button counts the ticked ones, and closing it with that button adds the ticked folders with their color and
+            // emoji, and not the unticked ones. The history's suggestions here are the fixtures', unticked so nothing else is added.
+            var wizardOne = Directory.CreateDirectory(Path.Combine(data, "wizard-one")).FullName;
+            var wizardTwo = Directory.CreateDirectory(Path.Combine(data, "wizard-two")).FullName;
+            var offeredBefore = _preferences.AutoPinnedFolders.ToList();
+            string wizardImage = Path.Combine(data, "folder-wizard-native.png");
+            bool folderWizard;
+            try
+            {
+                var wizardTask = ShowFolderWizardAsync();
+                var wizardUp = await EventuallyAsync(() => FolderWizard is not null && FolderWizardRows is not null);
+                foreach (var suggestion in FolderWizardRows ?? []) SetWizardRow(suggestion.Path, ticked: false);
+                AddWizardRow(wizardOne, suggested: false);
+                AddWizardRow(wizardTwo, suggested: false);
+                SetWizardRow(wizardOne, ticked: true, color: TabColors.Presets[0].Id, emoji: "🧪");
+                SetWizardRow(wizardTwo, ticked: false);
+                var wizardRows = FolderWizardRows ?? [];
+                var wizardButton = FolderWizard is { IsPrimaryButtonEnabled: true, PrimaryButtonText: "Add folder" }
+                    && wizardRows.Any(row => row.Path == wizardOne && row.Ticked && row.Emoji == "🧪") && wizardRows.Any(row => row.Path == wizardTwo && !row.Ticked);
+                await Task.Delay(300);
+                if (FolderWizard is { } shown)
+                {
+                    try { await CaptureAsync(shown, wizardImage); } catch (Exception exception) when (exception is not OutOfMemoryException) { Diagnostics.Log("smoke wizard capture: " + exception.Message); }
+                }
+                AcceptFolderWizard();
+                await wizardTask.WaitAsync(TimeSpan.FromSeconds(10));
+                var wizardAdded = IsFolder(wizardOne) && !IsFolder(wizardTwo)
+                    && _preferences.FolderColor.GetValueOrDefault(PinnedFolders.Normalize(wizardOne)) == TabColors.Presets[0].Id
+                    && _preferences.FolderEmoji.GetValueOrDefault(PinnedFolders.Normalize(wizardOne)) == "🧪";
+                folderWizard = wizardUp && wizardButton && wizardAdded;
+                if (!folderWizard) throw new InvalidOperationException($"Add folders did not list, count or add as laid out: up={wizardUp} button={wizardButton} added={wizardAdded}.");
+            }
+            finally
+            {
+                if (IsFolder(wizardOne)) { SetFolderColor(wizardOne, null); SetFolderEmoji(wizardOne, null); RemoveFolder(wizardOne); }
+                _preferences.AutoPinnedFolders = offeredBefore;
+                SavePreferences();
+                _notice.IsOpen = false; LastNotice = null;
+            }
             // Settings → Session Indicator Width shows its width as it moves: while the slider has the keyboard, the pane that had
             // it wears the border even alone in its tab, and once the keyboard moves on to another setting, a lone pane wears none.
             var tabBeforeLone = _tabs.SelectedItem;
@@ -2631,9 +2820,9 @@ internal sealed partial class MainWindow
                 throw new InvalidOperationException($"Switching Claude Code off did not take it out of sight, or on did not bring it back: listed={claudeListedBefore} rowsGone={claudeRowsGone} filterGone={claudeFilterGone} placeholders={claudePlaceholdersOff} refused={claudeStartRefused} back={claudeBack}.");
             // An agent installed since detection last looked (October 19, 2026): undecided, OpenCode has no tile when New session
             // opens; the detection the dialog starts finds it, turns it on, says so, and adds its tile before PowerShell's while
-            // the dialog is up. pwsh stands in for the install, since every PC that runs SicTerm has it.
+            // the dialog is up. Windows PowerShell stands in for the install, since every PC that runs SicTerm has it.
             var openCodeBefore = _preferences.Agents.Single(agent => agent.Id == "opencode");
-            _preferences.Agents = _preferences.Agents.Select(agent => agent.Id == "opencode" ? agent with { Enabled = null, Executable = "pwsh" } : agent).ToList();
+            _preferences.Agents = _preferences.Agents.Select(agent => agent.Id == "opencode" ? agent with { Enabled = null, Executable = "powershell" } : agent).ToList();
             RefreshAgentRows();
             _detectedAt = DateTimeOffset.MinValue;
             string[] TileIds() => _newSessionTiles?.Children.OfType<Microsoft.UI.Xaml.Controls.Primitives.ToggleButton>().Select(button => (string)button.Tag).ToArray() ?? [];
@@ -3226,7 +3415,7 @@ internal sealed partial class MainWindow
                 // The mark follows the theme too: the rail's draws the set for the rail's tone (the white >_ on a dark rail, SIC
                 // light's included, and the near-black one on a light rail) and the welcome page's the set for the page's.
                 var railMarkSet = SicMark.LightArt(_rail.Children.OfType<Border>().FirstOrDefault()?.Child) == SicMark.IsLightSurface(_theme.StripSurface)
-                    && _welcome.Children[0] is StackPanel welcomeStack && SicMark.LightArt(welcomeStack.Children[0]) == SicMark.IsLightSurface(_theme.Base.Color);
+                    && _homeStack is { } welcomeStack && SicMark.LightArt(welcomeStack.Children[0]) == SicMark.IsLightSurface(_theme.Base.Color);
                 if (!railMarkSet) _options.Trace("mark-set-mismatch " + theme.Id);
                 applied &= railMarkSet;
                 if (!applied || !fixedPalette) _options.Trace("theme-mismatch " + theme.Id + " renderer=" + appearance.Background);
@@ -3691,10 +3880,13 @@ internal sealed partial class MainWindow
             // reads back as this copy's, from New session's command, since its Icon is the mark. The real menu key and the package
             // registration are not touched: the scratch key is deleted again.
             var exeDirectory = AppContext.BaseDirectory;
-            var explorerCommandBuilt = File.Exists(Path.Combine(exeDirectory, ExplorerMenu.CommandFileName));
-            if (!explorerCommandBuilt) throw new InvalidOperationException("SicExplorerCommand.dll was not published beside the exe; the C++ build is part of Publish-App.ps1.");
-            var explorerPackageSigned = ExplorerCommandProbe.PackageSignedBy(exeDirectory, ExplorerMenu.PackagePublisher) == true;
-            if (!explorerPackageSigned) throw new InvalidOperationException("SicTerm.Identity.msix is missing beside the exe or is not signed by " + ExplorerMenu.PackagePublisher + ".");
+            // A build that left both out on purpose (Publish-App.ps1 -SkipIdentity: a PC without the C++ tools or the signing
+            // sign-in, as anyone building from source) skips the menu's checks below, and the report says so (identitySkipped).
+            var identitySkipped = _options.WithoutIdentity;
+            var explorerCommandBuilt = !identitySkipped && File.Exists(Path.Combine(exeDirectory, ExplorerMenu.CommandFileName));
+            if (!identitySkipped && !explorerCommandBuilt) throw new InvalidOperationException("SicExplorerCommand.dll was not published beside the exe; the C++ build is part of Publish-App.ps1.");
+            var explorerPackageSigned = !identitySkipped && ExplorerCommandProbe.PackageSignedBy(exeDirectory, ExplorerMenu.PackagePublisher) == true;
+            if (!identitySkipped && !explorerPackageSigned) throw new InvalidOperationException("SicTerm.Identity.msix is missing beside the exe or is not signed by " + ExplorerMenu.PackagePublisher + ".");
             // Run at Startup (November 12, 2026), under a scratch name so the person's own entry is never touched: on writes this exe
             // and reads back as on, off removes it.
             var scratchStartup = "SicTerm-smoke-" + Guid.NewGuid().ToString("N");
@@ -3707,7 +3899,8 @@ internal sealed partial class MainWindow
             }
             finally { StartupRegistration.Disable(scratchStartup); }
             var scratchMenuKey = @"Software\Super-Intelligent-Chat\Smoke\" + Guid.NewGuid().ToString("N");
-            bool explorerMenuOwned, explorerCommandEnumerated;
+            bool explorerMenuOwned = false, explorerCommandEnumerated = false;
+            if (!identitySkipped)
             try
             {
                 var menuItems = ExplorerMenuRegistration.Items(Environment.ProcessPath!, _preferences.Agents, IconSourceFor, LibraryIconFor);
@@ -3762,7 +3955,7 @@ internal sealed partial class MainWindow
             _options.WriteReport(new
             {
                 success = true, terminalReady = true, inputEchoed = true, resized = true,
-                welcomeSkipped, welcomeOpened, welcomeCard, welcomeImage, tourStops, tourDropMark, tourLimits, tourEnded, tourImage,
+                welcomeSkipped, welcomeOpened, welcomeCard, welcomeImage, setupNotice, setupImage, setupPopupImage, folderWizard, wizardImage, tourStops, tourDropMark, tourLimits, tourEnded, tourImage,
                 workspaceShell, brandMark, historySearch, previewShown, renamedSearch, placeholderRestored, reopenedNamed, closeToTray, minimizeToTray, closeAndMinimize,
                 inlineRename, f2Rename, f2FromTerminal, tabColored, reopenedColored, tabStripLegible, activeTabJoinsPane, harnessNameDropped, panePathFits,
                 sessionsGrouped, sectionsRuled, pinMarkDrawn, sessionsByFolder, newSessionFoldersListed, workspaceFolders, suggestedWorkspaces, usageLimits, statusLineKept, statusLineMs, limitsImage, contextWindow, folderEmoji, folderColors, sounds, folderExplorer, folderRowsPresented, foldersRelisted, workspaceFromFolder, updatesSection, appIconShipped, themeKeptScroll, userThemes, motionSetting, terminalOptionsApplied, cursorDrawn, copyOnSelect, terminalPaletteFixed,
@@ -3770,7 +3963,7 @@ internal sealed partial class MainWindow
                 tabBarBottom, tabsBottomImage, tabsBottomWindowImage, tabsBottomNoticeImage, tabsBottomLightImage, tabsBottomSplitImage, tabsBottomRightImage, fullScreen, fullScreenImage, fullScreenWindowImage, readyChime, chimesRung = ChimesRung, fontWidths,
                 findMatched, dropPastesQuotedPath, pasteFilteredAndTrimmed, multiLinePasteAsked, pasteThroughHost, splitCreated, splitRefused, splitTiled, splitSaved, paneFocusMoved, paneRenamed, paneBorder, paneBorderImages, paneBorderPreview, tabDuplicated, tabMoved, workspacesGrouped, paneDragged, movedOut, crossMoved, tabsConsolidated, resumeJoined, failedStartRecovered, backgroundStartWaited, resumeAll, resumeAllButton, noticeToasted, f5ResumesAll, keyboardHelp, resumeAllOnLaunch, hiddenWindowStart, dragRegions, dragSettledMs, dragAreas = DragAreaText(_dragRects), presenceHeuristic, presenceTitle, presenceWorkingAfterMs = workingAfter, presenceQuietForMs = quietFor, activeTabColored, panelCollapsed, panelExpanded, panelSlid, panelResized, workspacesPanel,
                 themesApplied, railAccentReadable, lightThemeApplied, darkThemeApplied, lightStartupApplied, gracefulExit, alwaysExitCleanly, quitDialog, windowPlacementTracked,
-                openFolderReceived, openAgentStarted, openMissingRefused, explorerCommandBuilt, explorerPackageSigned, explorerMenuOwned, explorerCommandEnumerated, panelKeptByResumeAll,
+                openFolderReceived, openAgentStarted, openMissingRefused, identitySkipped, explorerCommandBuilt, explorerPackageSigned, explorerMenuOwned, explorerCommandEnumerated, panelKeptByResumeAll,
                 consoleHost, consoleHostVersion = ConsoleHost.PackagedVersion, windowsPtyBuild = windowsPty.BuildNumber, zeroWidth, cursorRowsAgree, queryAnswersHidden,
                 petImageDrawn, petImageCleared, petImageDeleted, petImagesOff, petImagesOffAtStart, petConsoleHost, consoleHostCurrent = ConsoleHost.Current,
                 petInside, petOutside, petBox = new { left = petLeft, top = petTop, right = petRight, bottom = petBottom, scale = petScale }, petImage, petOffImage,

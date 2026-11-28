@@ -1,7 +1,10 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)] [string]$ApplicationPath,
-    [Parameter(Mandatory)] [string]$ScratchRoot
+    [Parameter(Mandatory)] [string]$ScratchRoot,
+    # The build left out SicExplorerCommand.dll and SicTerm.Identity.msix on purpose (Publish-App.ps1 -SkipIdentity): the app is told,
+    # skips the Windows 11 menu's checks, and reports identitySkipped, which this script then requires in place of them.
+    [switch]$SkipIdentity
 )
 
 $ErrorActionPreference = 'Stop'
@@ -20,7 +23,7 @@ $start = [Diagnostics.ProcessStartInfo]::new()
 $start.FileName = (Resolve-Path -LiteralPath $ApplicationPath).Path
 $start.WorkingDirectory = Split-Path $start.FileName -Parent
 $start.UseShellExecute = $false
-foreach ($argument in @('--terminal-smoke-test', '--data-dir', $runDirectory, '--report', $reportPath)) {
+foreach ($argument in @('--terminal-smoke-test', '--data-dir', $runDirectory, '--report', $reportPath) + @(if ($SkipIdentity) { '--without-identity' })) {
     $start.ArgumentList.Add($argument)
 }
 
@@ -45,6 +48,8 @@ try {
         'openFolderReceived', 'openAgentStarted', 'openMissingRefused', 'explorerCommandBuilt', 'explorerPackageSigned', 'explorerMenuOwned', 'explorerCommandEnumerated', 'panelKeptByResumeAll',
         'contextWindow'
     )
+    $identityChecks = @('explorerCommandBuilt', 'explorerPackageSigned', 'explorerMenuOwned', 'explorerCommandEnumerated')
+    if ($SkipIdentity) { $required = @($required | Where-Object { $_ -notin $identityChecks }) + 'identitySkipped' }
     foreach ($field in $required) {
         if ($report.PSObject.Properties.Name -notcontains $field -or $report.$field -ne $true) {
             throw "Application check '$field' failed. Report: $reportPath"

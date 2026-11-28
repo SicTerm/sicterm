@@ -12,7 +12,8 @@ namespace Sic.App;
 /// </summary>
 internal sealed partial class MainWindow
 {
-    private sealed record AgentRow(ToggleSwitch Switch, FrameworkElement Identity, TextBlock Status, TextBlock Where);
+    /// <summary>An agent's card: Install shows while it was not found (MainWindow.Setup.cs), Add to PATH while Claude Code's folder is off Path.</summary>
+    private sealed record AgentRow(ToggleSwitch Switch, FrameworkElement Identity, TextBlock Status, TextBlock Where, Button Install, Button AddPath);
     private readonly Dictionary<string, AgentRow> _agentRows = new(StringComparer.Ordinal);
     /// <summary>The last detection's answer per agent; empty while none has finished.</summary>
     private readonly Dictionary<string, DetectedAgent> _detection = new(StringComparer.Ordinal);
@@ -33,6 +34,8 @@ internal sealed partial class MainWindow
         page.Children.Add(top);
         foreach (var definition in _preferences.Agents) page.Children.Add(BuildAgentCard(definition));
         RefreshAgentRows();
+        // PowerShell, in a section of its own under the agents (MainWindow.Setup.cs).
+        BuildShellSection(page);
         // The plans behind the agents (MainWindow.Limits.cs); under General until October 15, 2026.
         page.Children.Add(Section("Plans"));
         var usageLimits = new ToggleSwitch { Header = "Show usage limits", IsOn = _preferences.ShowUsageLimits };
@@ -47,6 +50,7 @@ internal sealed partial class MainWindow
         var head = new Grid { ColumnSpacing = 10 };
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var identity = new Grid { ColumnSpacing = 10 };
@@ -65,10 +69,21 @@ internal sealed partial class MainWindow
         _theme.Accentuate(toggle.Resources);
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(toggle, definition.Name);
         toggle.Toggled += (_, _) => { if (!_syncingAgentSwitches) SetAgentEnabled(id, toggle.IsOn); };
-        Grid.SetColumn(toggle, 2); head.Children.Add(toggle);
+        // Install while the agent was not found, Add to PATH while Claude Code's folder is off Path (MainWindow.Setup.cs).
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        var addPath = Theme.TextButton("Add to PATH");
+        addPath.Click += (_, _) => AddClaudeToPath();
+        addPath.Visibility = Visibility.Collapsed;
+        var install = _theme.PrimaryButton("Install");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(install, "Install " + definition.Name);
+        install.Click += async (_, _) => { if (Sic.Core.Shell.SetupCatalog.Item(id) is { } item) await ShowInstallAsync(item); };
+        install.Visibility = Visibility.Collapsed;
+        buttons.Children.Add(addPath); buttons.Children.Add(install);
+        Grid.SetColumn(buttons, 2); head.Children.Add(buttons);
+        Grid.SetColumn(toggle, 3); head.Children.Add(toggle);
         var more = _theme.IconButton("", "Details", 28, 12);
         more.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(more, 3); head.Children.Add(more);
+        Grid.SetColumn(more, 4); head.Children.Add(more);
 
         var details = new StackPanel { Spacing = 8, Margin = new Thickness(0, 10, 4, 2), Visibility = Visibility.Collapsed };
         var where = _theme.MonoText(""); where.TextWrapping = TextWrapping.Wrap; where.TextTrimming = TextTrimming.None;
@@ -128,7 +143,7 @@ internal sealed partial class MainWindow
         body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         body.Children.Add(head);
         Grid.SetRow(details, 1); body.Children.Add(details);
-        _agentRows[id] = new(toggle, identity, status, where);
+        _agentRows[id] = new(toggle, identity, status, where, install, addPath);
         return new Border
         {
             Child = body, Background = _theme.Layer, BorderBrush = _theme.Stroke, BorderThickness = new Thickness(1),
@@ -282,6 +297,13 @@ internal sealed partial class MainWindow
                     row.Where.Text += (row.Where.Text.Length == 0 ? "" : "\n") + (iconSource is null ? "Icon: SicTerm's letter tile."
                         : "Icon from " + iconSource.Path + (iconSource.Plate is null ? "" : ", on its tile colour #" + iconSource.Plate));
                 row.Where.Visibility = row.Where.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+                var setup = Sic.Core.Shell.SetupCatalog.Item(agent.Id);
+                row.Install.Visibility = setup is not null && (found is not null || SetupGapsOverride is not null) && !SetupFound(setup) ? Visibility.Visible : Visibility.Collapsed;
+                // Install takes the switch's place while the agent is not found: beside it the name was cut short ("Claude C…"), and an
+                // agent not found has nothing to switch on yet. The smoke's and --setup-gaps' stand-in reads as not found here too.
+                row.Switch.Visibility = row.Install.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+                if (row.Install.Visibility == Visibility.Visible && found?.Available == true) (row.Status.Text, row.Status.Foreground) = ("Not found", _theme.Warning);
+                row.AddPath.Visibility = agent.Id == "claude" && ClaudeOffPath() ? Visibility.Visible : Visibility.Collapsed;
             }
         }
         finally { _syncingAgentSwitches = false; }

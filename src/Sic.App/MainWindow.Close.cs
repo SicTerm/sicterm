@@ -85,12 +85,17 @@ internal sealed partial class MainWindow
         finally { pane.Closing = false; _closingPanes.Remove(pane); }
     }
 
-    private async Task CloseTabAsync(TabViewItem tab)
+    /// <summary>
+    /// Closes the tab, asking first while anything runs in it, unless <paramref name="decided"/>: a button that says Close tab
+    /// (an install's, MainWindow.Setup.cs), on a PowerShell tab back at its prompt, where there is nothing to exit cleanly.
+    /// </summary>
+    private async Task CloseTabAsync(TabViewItem tab, bool decided = false)
     {
         if (!_open.TryGetValue(tab, out var host) || !_closingTabs.Add(tab)) return;
         try
         {
-            if (host.Panes.Any(pane => pane.IsRunning))
+            if (decided) host.Closing = true;
+            else if (host.Panes.Any(pane => pane.IsRunning))
             {
                 var choice = await ChooseCloseAsync("Close this tab?", "An agent is still running in it. Exit cleanly asks it to end its own session first so its history and locks are written; Force stops it at once. Saved agent history is never deleted.");
                 if (choice == CloseChoice.Cancel) return;
@@ -236,7 +241,7 @@ internal sealed partial class MainWindow
     /// <summary>Closes several tabs: side by side when no question will be asked, one after another when each may ask.</summary>
     private async Task CloseTabsAsync(IReadOnlyList<TabViewItem> tabs)
     {
-        if (_preferences.AlwaysExitCleanly) { await Task.WhenAll(tabs.Select(CloseTabAsync)); return; }
+        if (_preferences.AlwaysExitCleanly) { await Task.WhenAll(tabs.Select(tab => CloseTabAsync(tab))); return; }
         foreach (var tab in tabs) await CloseTabAsync(tab);
     }
 
