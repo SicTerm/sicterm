@@ -139,7 +139,7 @@ public static class SetupCatalog
     /// <summary>Claude Code's row once its installer has run: the installer leaves its folder off Path (2.1.332, a Windows Sandbox run).</summary>
     public const string ClaudeOffPath = "Installed. Its folder is not on PATH, so claude works in SicTerm but not in other terminals.";
 
-    public const string ClaudeOffPathNotice = "Claude Code is installed. Its folder is not on PATH.";
+    public const string ClaudeOffPathNotice = "Claude Code is installed. Add to PATH lets Claude start from any folder in other terminals too. SicTerm starts it either way.";
 
     public const string ClaudeOnPathNotice = "Added. New tabs and other terminals find claude.";
 
