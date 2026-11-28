@@ -105,7 +105,7 @@ public static class SetupCatalog
         new("https://nodejs.org/en/download"));
 
     /// <summary>The notice over a tab Install has just typed into.</summary>
-    public const string Typed = "Nothing runs until Enter is pressed.";
+    public const string Typed = "Press Enter to install.";
 
     /// <summary>Claude Code's row once its installer has run: the installer leaves its folder off Path (2.1.332, a Windows Sandbox run).</summary>
     public const string ClaudeOffPath = "Installed. Its folder is not on PATH, so claude works in SicTerm but not in other terminals.";
