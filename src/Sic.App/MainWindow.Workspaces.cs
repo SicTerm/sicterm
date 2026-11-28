@@ -1206,7 +1206,7 @@ internal sealed partial class MainWindow
     {
         if (RootFor(folder) is not null || _options.SmokeTest) return true;
         var leaf = Paths.Leaf(folder);
-        var text = _theme.BodyText(folder + " is under none of the folders in Folders. Added, it is a workspace of its own, where this session and later ones in it go. In Scratch the session runs with the others outside every folder.", 14);
+        var text = _theme.BodyText(folder + " is not in Folders. Adding it creates a workspace for this session and later ones in that folder. Open in Scratch keeps the session with others from unlisted folders.", 14);
         text.TextWrapping = TextWrapping.Wrap; text.MaxWidth = 460;
         var dialog = Dialog("Outside your folders", text, "Add " + leaf);
         dialog.SecondaryButtonText = "Open in Scratch";

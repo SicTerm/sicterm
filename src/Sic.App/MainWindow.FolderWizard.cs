@@ -300,7 +300,7 @@ internal static class FolderWizardText
 {
     internal const string Title = "Add folders";
     internal const string Intro = "Each folder becomes a workspace for managing its tabs and conversations. Color and emojis increase visibility but are totally optional.";
-    internal const string Empty = "No folders listed yet. Add folder… picks one.";
+    internal const string Empty = "No folders listed yet.";
     internal const string Suggested = "Used most in the agents' history";
     internal const string CardHeading = "Folders";
     internal const string CardLine = "Each folder becomes a workspace for managing its tabs and conversations. More can be added at any time from the Folders panel.";

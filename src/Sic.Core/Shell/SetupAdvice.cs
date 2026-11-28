@@ -73,16 +73,16 @@ public static class SetupCatalog
     public const string AgentsLabel = "Coding agents · only one is needed";
 
     /// <summary>Under the rows, once for all of them.</summary>
-    public const string Footnote = "Install opens a new tab with the command typed. Nothing runs until Enter is pressed.";
+    public const string Footnote = "Install opens a new PowerShell tab with the command. Press Enter to install.";
 
     /// <summary>Under the command in the install popup.</summary>
-    public const string PopupFootnote = "Install opens a new tab with this command typed. Nothing runs until Enter is pressed.";
+    public const string PopupFootnote = "Install opens a new PowerShell tab with this command. Press Enter to install.";
 
     /// <summary>Under Node.js's command in OpenCode's popup.</summary>
-    public const string NodeFootnote = "Install Node.js opens a new tab with this command typed. Once Node.js is found, OpenCode can be installed.";
+    public const string NodeFootnote = "Install Node.js opens a new PowerShell tab with this command. Press Enter to install. OpenCode can be installed once Node.js is found.";
 
     /// <summary>OpenCode's popup on a PC without npm.</summary>
-    public const string OpenCodeNeedsNode = "OpenCode installs through npm, which comes with Node.js. Node.js installs for all users and needs admin rights; Windows asks for them when it starts.";
+    public const string OpenCodeNeedsNode = "Node.js is not installed. It installs for all users, so Windows asks for admin rights during setup.";
 
     public const string PowerShellInstalled = "PowerShell 7 is installed. New tabs run in it.";
 
@@ -124,18 +124,18 @@ public static class SetupCatalog
             new("https://learn.microsoft.com/powershell/scripting/install/install-powershell-on-windows")),
         new("claude", "Claude Code",
             "From Anthropic. Needs a paid Claude plan or a Console account.",
-            "Anthropic's coding agent. It installs for this account only. The first session opens a browser to sign in. The free Claude plan does not include it.",
+            "Anthropic's coding agent.",
             new("https://code.claude.com/docs/en/setup")),
         new("codex", "Codex",
             "From OpenAI. Needs a paid ChatGPT plan or an API key.",
-            "OpenAI's coding agent. It installs for this account only. The first session asks for a ChatGPT sign-in or an API key.",
+            "OpenAI's coding agent.",
             new("https://developers.openai.com/codex/cli")),
         new("opencode", "OpenCode",
             "Open source. Works with most model providers. Needs Node.js.",
             "An open-source coding agent. It has no Windows installer, so it installs through npm, which comes with Node.js.",
             new("https://opencode.ai/docs")),
         new("hermes", "Hermes",
-            "Open source, from Nous Research. Works with most model providers. A large download.",
+            "Open source, from Nous Research. Works with most model providers.",
             "An open-source agent from Nous Research. Its installer downloads Git, Python and the agent, which takes several minutes.",
             new("https://hermes-agent.nousresearch.com/docs/getting-started/installation"))
     ];
