@@ -299,6 +299,10 @@ internal sealed partial class MainWindow : Window
         var hermesHome = Environment.GetEnvironmentVariable("HERMES_HOME");
         if (string.IsNullOrWhiteSpace(hermesHome)) hermesHome = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "hermes");
         var preferences = new AppPreferences { Agents = BuiltInAgents.Create(home, hermesHome).ToList() };
+        // The first run's theme follows Windows' app mode (Settings → Personalization → Colors): SicTerm Light in light mode,
+        // SicTerm Dark in dark (Chris, November 27, 2026). Chosen once, with the settings file; a theme picked later stays.
+        // The smoke keeps the dark default its checks are written for.
+        if (!_options.SmokeTest && WindowsAppsLight()) preferences.Theme = "sic-light";
         // No folders on a first run: a workspace's home is only what the user sets, since no folder exists on every machine. The
         // smoke seeds the folder list a settings file kept before November 8, 2026, which the first launch adopts as the first
         // workspace's home (Workspaces.Adopt), so the merge's one-time read is exercised.
@@ -306,6 +310,13 @@ internal sealed partial class MainWindow : Window
         if (_options.SmokeTest)
             preferences.Agents = preferences.Agents.Select(agent => agent with { HistoryDirectory = Path.Combine(_options.DataDirectory, "fixtures", agent.Id), Enabled = true }).ToList();
         return preferences;
+    }
+
+    /// <summary>Whether Windows' apps are in light mode, as File Explorer's menus read it; dark when the setting cannot be read.</summary>
+    private static bool WindowsAppsLight()
+    {
+        try { return ShellIcons.LightMenus(); }
+        catch (Exception exception) when (exception is System.Security.SecurityException or UnauthorizedAccessException or IOException) { return false; }
     }
 
     private void BuildShell()
