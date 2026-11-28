@@ -438,11 +438,17 @@ internal sealed partial class MainWindow
         internal bool ProgramSeen { get; set; }
         internal string? Screen { get; set; }
         internal int Settling { get; set; }
+        /// <summary>The tab's shell reported working (its hook, <see cref="Sic.Core.Shell.ShellStatus"/>): a command is running.</summary>
+        internal bool Running { get; set; }
+        /// <summary>The prompt came back after a command ran: the installer has finished, whatever it did.</summary>
+        internal bool Ended { get; set; }
+        /// <summary>The prompt came back since the watch last looked; detection looks again at once.</summary>
+        internal bool LookNow { get; set; }
     }
 
     private readonly List<SetupInstall> _installs = [];
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _installWatch;
-    private bool _installTicking;
+    private bool _installTicking, _installTickDue;
 
     /// <summary>The installs being watched, by item; for verification.</summary>
     internal IReadOnlyList<string> SetupInstalls => _installs.Select(install => install.Item.Id).ToList();
@@ -459,7 +465,20 @@ internal sealed partial class MainWindow
             var folder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             if (await StartNewAsync("shell", folder, title: "Install " + item.Name) is not { } pane) return;
             _installs.RemoveAll(install => install.Item.Id == item.Id);
-            _installs.Add(new SetupInstall { Item = item, Pane = pane });
+            var install = new SetupInstall { Item = item, Pane = pane };
+            _installs.Add(install);
+            // The tab's shell says when a command starts and when its prompt is back; the prompt back after the install command
+            // ran is the moment to look, rather than the next tick or the screen holding still.
+            pane.PresenceChanged += changed =>
+            {
+                if (!_installs.Contains(install)) return;
+                var reported = changed.Presence.Reported;
+                if (reported == Sic.Core.Agents.ProgramState.Working) { install.Running = true; return; }
+                if (reported != Sic.Core.Agents.ProgramState.Idle || !install.Running) return;
+                install.Running = false;
+                install.Ended = install.LookNow = true;
+                _ = InstallTickAsync();
+            };
             WatchInstalls();
             await PromptShownAsync(pane);
             if (_closing || !AllPanes.Contains(pane) || !pane.IsRunning) return;
@@ -509,12 +528,15 @@ internal sealed partial class MainWindow
     /// Every two seconds while an install is watched. Not yet found: the program in its known place (Claude Code and Codex), or
     /// PowerShell 7 anywhere, is looked for at once, and detection looks again when it appears, and every sixteen seconds for
     /// the installers with no known place (Hermes, npm), which are also found when they change Path; Node.js is found by npm on
-    /// Path, read again from the registry. Found: the notice waits for the tab's screen to stop changing, since claude.exe is in
-    /// place a moment before its installer has finished talking. The watch ends when the item is found and said, or its tab has gone.
+    /// Path, read again from the registry. The tab's prompt back after the command ran (its shell's own report) has detection look
+    /// at once, and a find is then said at once. Without that report the notice waits for the tab's screen to stop changing, since
+    /// claude.exe is in place a moment before its installer has finished talking. The watch ends when the item is found and said,
+    /// or its tab has gone. A tick asked for while one runs follows it.
     /// </summary>
     private async Task InstallTickAsync()
     {
-        if (_installTicking || _closing) return;
+        if (_closing) return;
+        if (_installTicking) { _installTickDue = true; return; }
         _installTicking = true;
         try
         {
@@ -528,6 +550,11 @@ internal sealed partial class MainWindow
                 if (!SetupFound(install.Item))
                 {
                     if (!open) { _installs.Remove(install); continue; }
+                    if (install.LookNow)
+                    {
+                        install.LookNow = false;
+                        if (install.Item.Id == SetupCatalog.PowerShell) RefreshSetupAdvice(); else if (install.Item.Id != "node") detect = true;
+                    }
                     if (!install.ProgramSeen && SetupProgramThere(install.Item))
                     {
                         install.ProgramSeen = true;
@@ -536,7 +563,7 @@ internal sealed partial class MainWindow
                     else if (install.Item.Id is not (SetupCatalog.PowerShell or "node") && install.Ticks % 8 == 0 && DateTimeOffset.UtcNow - install.Started < InstallWatch) detect = true;
                     continue;
                 }
-                if (open && install.Settling < 30 && install.Pane.Terminal is { } terminal && install.Pane.IsRunning)
+                if (open && !install.Ended && install.Settling < 30 && install.Pane.Terminal is { } terminal && install.Pane.IsRunning)
                 {
                     string? screen = null;
                     try { screen = await terminal.ReadScreenAsync(); }
@@ -547,13 +574,19 @@ internal sealed partial class MainWindow
                 _installs.Remove(install);
                 ShowInstalled(install.Item, open ? install.Pane : null);
             }
-            if (detect && !_detecting) await DetectToolsAsync();
+            if (detect && !_detecting)
+            {
+                await DetectToolsAsync();
+                // A find for a tab whose prompt is back is said now, not on the next tick.
+                if (_installs.Any(install => install.Ended)) _installTickDue = true;
+            }
         }
         catch (Exception exception) when (exception is not OutOfMemoryException) { Diagnostics.Log("setup install watch: " + exception.Message); }
         finally
         {
             _installTicking = false;
             if (_installs.Count == 0) _installWatch?.Stop();
+            else if (_installTickDue) { _installTickDue = false; _ = InstallTickAsync(); }
         }
     }
 

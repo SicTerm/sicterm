@@ -100,6 +100,9 @@ public sealed class PresenceTracker(string agentId, bool selected = true)
     /// <summary>Whether the agent reports its own status (OSC 7501), so that titles and output are not consulted.</summary>
     public bool Reporting => _reported is not null;
 
+    /// <summary>The state the program last reported over OSC 7501, or null when it has reported none (or withdrew it).</summary>
+    public ProgramState? Reported => _reported;
+
     /// <summary>With a reported <see cref="PaneState.Blocked"/>, what the agent waits for: "permission", "question" or "auth"; null when it did not say.</summary>
     public string? BlockedKind { get; private set; }
 

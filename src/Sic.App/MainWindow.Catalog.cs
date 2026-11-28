@@ -661,13 +661,14 @@ internal sealed partial class MainWindow
             // now) is turned on once it is found.
             if (BuiltInAgents.Decide(_preferences.Agents, id => detected.FirstOrDefault(result => result.Id == id)?.Available) is { } decided)
             {
-                var turnedOn = decided.Where(agent => agent.IsOn && !AgentOn(agent.Id)).Select(agent => agent.Name).ToList();
+                // An agent installed from Get set up's tab is said by that install's own notice, with its buttons (MainWindow.Setup.cs).
+                var turnedOn = decided.Where(agent => agent.IsOn && !AgentOn(agent.Id) && !_installs.Any(install => install.Item.Id == agent.Id)).Select(agent => agent.Name).ToList();
                 _preferences.Agents = decided;
                 SavePreferences();
                 _ = ApplyAgentSwitchesAsync(refreshHistory: true);
                 // The welcome's card names the agents on a first run (marked seen as its film starts, so the film itself is the
                 // test); any later find is said once.
-                if (!WelcomeDue && _welcomeFilm is null) NotifyBriefly(turnedOn.Count == 1 ? "Agent turned on" : "Agents turned on", Names(turnedOn) + " detected on this PC.");
+                if (!WelcomeDue && _welcomeFilm is null && turnedOn.Count > 0) NotifyBriefly(turnedOn.Count == 1 ? "Agent turned on" : "Agents turned on", Names(turnedOn) + " detected on this PC.");
             }
             return true;
         }
@@ -742,7 +743,8 @@ internal sealed partial class MainWindow
             if (_closing) return false;
             await NoteSavedSessionsAsync();
             await SearchAsync();
-            var stamp = DateTime.Now.ToString("HH:mm");
+            // Windows' own short time, as the limits and the update check show it: 9:51 PM on a 12-hour clock.
+            var stamp = DateTime.Now.ToString("t");
             HistoryRefreshes++;
             if (_refreshButton is not null) ToolTipService.SetToolTip(_refreshButton, RefreshTooltip(stamp));
             UpdateStatus($"History refreshed {stamp} · {result.Imported} imported"
