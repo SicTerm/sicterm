@@ -28,7 +28,7 @@ internal sealed partial class MainWindow : Window
 {
     private const double RailWidth = 48;
     // The panel slides: opening decelerates and closing accelerates, the Fluent enter and exit pairing, both fast enough to read as one motion.
-    private static readonly TimeSpan PanelOpenDuration = TimeSpan.FromMilliseconds(160), PanelCloseDuration = TimeSpan.FromMilliseconds(120);
+    private static readonly TimeSpan PanelOpenDuration = TimeSpan.FromMilliseconds(80), PanelCloseDuration = TimeSpan.FromMilliseconds(60);
     // A notice slides up from under the status bar with the same pairing; a brief one holds this long and slides back down.
     private static readonly TimeSpan NoticeInDuration = TimeSpan.FromMilliseconds(200), NoticeOutDuration = TimeSpan.FromMilliseconds(160);
     internal static TimeSpan BriefNoticeHold { get; set; } = TimeSpan.FromSeconds(4);

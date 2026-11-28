@@ -35,10 +35,15 @@ internal sealed class PaneCanvas : Panel
     // The zoom (Sic.Core.Appearance.PaneZoom): the zoomed pane's id and its card, in the canvas's own pixels, which may reach past
     // its edges over the window's body; and the dim over the other panes, which takes a press so it never reaches their terminals.
     private readonly Border _dim = new() { Visibility = Visibility.Collapsed };
+    // The zoomed pane's own place, filled with the terminal's background while the card is out (and while it goes back), so it
+    // matches the dimmed panes beside it instead of showing the window's background through (Chris, November 28, 2026). The
+    // terminal palette is the same in every theme (ThemeCatalog.Terminal), so this one color fits them all.
+    private readonly Border _vacancy = new() { IsHitTestVisible = false, Background = new SolidColorBrush(Theme.Parse(Sic.Core.Appearance.ThemeCatalog.Terminal.Background)) };
+    private string? _vacant;
     private string? _zoomed;
     private PaneRect _zoomCard;
     // Over the tiled panes and the dividers: the dim, a pane on its way back from the card, the zoomed pane, and the drop mark above them all.
-    private const int DimLayer = 10, LeavingLayer = 11, ZoomedLayer = 12, DropLayer = 13;
+    private const int VacancyLayer = 1, DimLayer = 10, LeavingLayer = 11, ZoomedLayer = 12, DropLayer = 13;
     // The zoom's motion while it runs: the panes it moves, each laid out at its new place at once and drawn from its old one by a
     // render transform that eases away (the terminal is resized once, not at every frame), and the dim fading in or out.
     private Storyboard? _zoomMotion;
@@ -46,7 +51,7 @@ internal sealed class PaneCanvas : Panel
     private TaskCompletionSource? _zoomMoved;
 
     /// <summary>How long the card takes to grow out of the pane's place or to shrink back into it. The smoke slows it to watch it.</summary>
-    internal static TimeSpan ZoomMotion { get; set; } = TimeSpan.FromMilliseconds(180);
+    internal static TimeSpan ZoomMotion { get; set; } = TimeSpan.FromMilliseconds(90);
 
     /// <summary>Whether the zoom's motion is running, for verification.</summary>
     internal bool ZoomMoving => _zoomMotion is not null;
@@ -83,6 +88,8 @@ internal sealed class PaneCanvas : Panel
             if (NearestPane(args.GetCurrentPoint(this).Position) is { } pressed) DimPressed?.Invoke(pressed.Pane);
         };
         Children.Add(_dim);
+        Canvas.SetZIndex(_vacancy, VacancyLayer);
+        Children.Add(_vacancy);
     }
 
     /// <summary>The pane shown as a card over the others, by id; null while none is.</summary>
@@ -115,6 +122,8 @@ internal sealed class PaneCanvas : Panel
         if (leaving is not null) Canvas.SetZIndex(leaving, 0);
         _zoomed = pane;
         _zoomCard = card;
+        // The place left empty: the zoomed pane's, or, zooming out, the one the pane is going back to until it gets there.
+        _vacant = pane ?? leaving?.Descriptor.Id;
         if (pane is not null && PaneById(pane) is { } zoomed) Canvas.SetZIndex(zoomed, ZoomedLayer);
         var moves = animate && ZoomMotion > TimeSpan.Zero && (leaving is not null || arriving is not null);
         // Zooming out, the dim stays to fade, and no longer takes a press.
@@ -195,6 +204,7 @@ internal sealed class PaneCanvas : Panel
         }
         _moving.Clear();
         _dim.Opacity = 1;
+        if (_zoomed is null) _vacant = null;
         if (_zoomed is null && _dim.Visibility == Visibility.Visible)
         {
             _dim.Visibility = Visibility.Collapsed;
@@ -381,6 +391,8 @@ internal sealed class PaneCanvas : Panel
         foreach (var placement in _arrangement.Dividers)
             if (_dividers.TryGetValue(placement.Path, out var divider)) placements.Add((divider, placement.Rect));
         placements.Add((_dim, _dim.Visibility == Visibility.Visible ? new PaneRect(0, 0, width, height) : new PaneRect(0, 0, 0, 0)));
+        var vacancy = _dim.Visibility == Visibility.Visible && _vacant is { } vacant ? _arrangement.Panes.FirstOrDefault(placement => placement.Pane == vacant) : null;
+        placements.Add((_vacancy, vacancy?.Rect ?? new PaneRect(0, 0, 0, 0)));
         placements.Add((_dropMark, _dropMark.Visibility == Visibility.Visible ? _dropRect : new PaneRect(0, 0, 0, 0)));
         _placements = placements; _placedFor = (width, height);
         return placements;

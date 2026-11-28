@@ -2158,7 +2158,7 @@ internal sealed partial class MainWindow
             SetMotion(MotionSetting.On);
             var slide = System.Diagnostics.Stopwatch.StartNew();
             await SetPanelOpen(false);
-            var panelSlid = PanelSlides && slide.ElapsedMilliseconds is >= 60 and < 900;
+            var panelSlid = PanelSlides && slide.ElapsedMilliseconds is >= 40 and < 900;
             await WaitForAsync(async () => (await terminal.GetDimensionsAsync()).Columns > beforeCollapse.Columns);
             var collapsedPathFits = pane.PathFitsBest();
             var compactShellImage = await CaptureShellAsync(Path.Combine(data, "compact-native.png"), terminal);
@@ -2172,7 +2172,7 @@ internal sealed partial class MainWindow
             SetMotion(MotionSetting.Off);
             var snap = System.Diagnostics.Stopwatch.StartNew();
             await SetPanelOpen(true);
-            var panelSnapped = !PanelSlides && snap.ElapsedMilliseconds < 60 && _panel.Width == PanelLayout.DefaultWidth;
+            var panelSnapped = !PanelSlides && snap.ElapsedMilliseconds < 40 && _panel.Width == PanelLayout.DefaultWidth;
             SetMotion(MotionSetting.On);
             var motionSetting = panelSlid && panelSnapped && PanelSlides && SavedPreferences(() => new AppPreferences()).Motion == MotionSetting.On;
             await WaitForAsync(async () => (await terminal.GetDimensionsAsync()).Columns <= beforeCollapse.Columns);
