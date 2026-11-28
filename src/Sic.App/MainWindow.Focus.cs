@@ -29,6 +29,8 @@ internal sealed partial class MainWindow
         _paintedSelected = host;
         if (previous is not null && previous != host && _open.ContainsKey(previous.Item)) PaintTab(previous);
         if (host is not null) PaintTab(host);
+        // With the zoom on, the tab shown zooms its focused pane (MainWindow.Zoom.cs).
+        if (host is not null) ShowZoom(host);
         var pane = host is { Panes.Count: > 0 } ? FocusedPane(host) : null;
         SetActivePane(pane);
         // A tab chosen on the tab strip from the keyboard keeps the keyboard there, for the next Alt+Left or Alt+Right; a click,
@@ -49,6 +51,8 @@ internal sealed partial class MainWindow
         _activePane = pane;
         if (pane is not null) pane.LastActive = ++_activations;
         RefreshActiveRing();
+        // With the zoom on, it goes where the keyboard does (MainWindow.Zoom.cs).
+        if (pane is not null) FollowZoom(pane);
         // The Workspaces panel lights the row of the pane with the keyboard.
         if (!_restoring) RefreshWorkspaceStates();
     }
@@ -66,12 +70,12 @@ internal sealed partial class MainWindow
         RefreshActiveRing();
     }
 
-    /// <summary>Draws the active pane's border in a tab of two or more panes, or in any tab while the width is being set.</summary>
+    /// <summary>Draws the active pane's border in a tab of two or more panes, on a zoomed pane's card, or in any tab while the width is being set.</summary>
     private void RefreshActiveRing()
     {
         if (_activePane is not { } pane) return;
         var host = _open.Values.FirstOrDefault(item => item.Panes.Contains(pane));
-        pane.SetActive(host is not null && (host.Panes.Count > 1 || _paneBorderPreview));
+        pane.SetActive(host is not null && (host.Panes.Count > 1 || host.Content.Zoomed is not null || _paneBorderPreview));
     }
 
     /// <summary>The side of the panes the tab strip lies on: above the top row, or below the bottom row with the tabs at the bottom (Settings → Tab bar).</summary>

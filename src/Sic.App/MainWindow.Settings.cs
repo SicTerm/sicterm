@@ -131,6 +131,23 @@ internal sealed partial class MainWindow
         var paneBorderColor = BuildPaneBorderColorButton();
         Grid.SetColumn(paneBorderColor, 2); paneBorderRow.Children.Add(paneBorderColor);
         stack.Children.Add(paneBorderRow);
+        // The zoomed pane's card (Ctrl+Shift+Z, MainWindow.Zoom.cs): its share of the terminal area, applied at once.
+        var zoomSize = new Slider
+        {
+            Header = "Zoomed pane size", Minimum = PaneZoom.MinPercent, Maximum = PaneZoom.MaxPercent, StepFrequency = 5, SmallChange = 5, LargeChange = 10,
+            Value = _preferences.PaneZoomPercent, IsThumbToolTipEnabled = false
+        };
+        zoomSize.ValueChanged += (_, args) => SetPaneZoom((int)Math.Round(args.NewValue));
+        Explain(zoomSize, "Ctrl+Shift+Z shows the focused pane as a card over the others, and puts it back. The card is this share of the room the panes have, and follows the keyboard to other panes, tabs and workspaces until zoomed out.");
+        _paneZoomValue = _theme.Caption(PaneZoom.PercentLabel(_preferences.PaneZoomPercent));
+        _paneZoomValue.VerticalAlignment = VerticalAlignment.Bottom;
+        _paneZoomValue.Margin = new Thickness(0, 0, 0, 8);
+        var zoomSizeRow = new Grid { ColumnSpacing = 8 };
+        zoomSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        zoomSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        zoomSizeRow.Children.Add(zoomSize);
+        Grid.SetColumn(_paneZoomValue, 1); zoomSizeRow.Children.Add(_paneZoomValue);
+        stack.Children.Add(zoomSizeRow);
 
         stack = terminal;
         stack.Children.Add(Section("Terminal"));
@@ -420,6 +437,7 @@ internal sealed partial class MainWindow
             ("F2", "Rename the focused pane; in a tab of one pane, or on the tab strip, the tab"),
             ("Alt+Shift+Plus", "Split right: a new session beside the focused pane"), ("Alt+Shift+Minus", "Split down: a new session below it (up to " + PaneLayout.MaxPanes + " panes per tab)"),
             ("Alt+Arrow", "Move to the pane on that side (where there is none, the key reaches the terminal)"),
+            ("Ctrl+Shift+Z", "Zoom the focused pane over the others, and back; the zoom follows Alt+Arrow, a click on another pane, Ctrl+Tab and workspace switches (Settings → Zoomed pane size)"),
             TabsBottom
                 ? ("Alt+Down", "From the bottom row, down to the tabs: Alt+Left and Alt+Right switch tabs, Alt+Up, Up or Enter go back in")
                 : ("Alt+Up", "From the top row, up to the tabs: Alt+Left and Alt+Right switch tabs, Alt+Down, Down or Enter go back in"),
@@ -633,6 +651,17 @@ internal sealed partial class MainWindow
         foreach (var pane in AllPanes) pane.RingWidth = _preferences.PaneBorderWidth;
         if (_paneBorderValue is not null) _paneBorderValue.Text = PaneBorder.Label(_preferences.PaneBorderWidth);
         if (_paneBorderSlider is { } slider && slider.Value != _preferences.PaneBorderWidth) slider.Value = _preferences.PaneBorderWidth;
+    }
+
+    private TextBlock? _paneZoomValue;
+
+    /// <summary>Settings → Zoomed pane size. Saved, and every zoomed pane's card made again at once.</summary>
+    internal void SetPaneZoom(int percent)
+    {
+        _preferences.PaneZoomPercent = PaneZoom.Clamp(percent);
+        SavePreferences();
+        if (_paneZoomValue is not null) _paneZoomValue.Text = PaneZoom.PercentLabel(_preferences.PaneZoomPercent);
+        RefreshZooms();
     }
 
     /// <summary>Settings → Close and minimize. Saved at once; the next close or minimize reads it.</summary>

@@ -43,6 +43,7 @@ internal sealed partial class MainWindow
                 case "next-workspace": StepWorkspace(1); break;
                 case "previous-workspace": StepWorkspace(-1); break;
                 case "workspace-list": ShowWorkspaceSwitcher(); break;
+                case "zoom": ToggleZoom(); break;
                 // From a terminal's page, which only sends these toward a pane.
                 case "focus-left": MovePaneFocus(PaneDirection.Left); break;
                 case "focus-right": MovePaneFocus(PaneDirection.Right); break;
