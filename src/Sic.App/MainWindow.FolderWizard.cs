@@ -299,7 +299,7 @@ internal sealed partial class MainWindow
 internal static class FolderWizardText
 {
     internal const string Title = "Add folders";
-    internal const string Intro = "Each folder becomes a workspace, where its tabs and conversations gather. A color and an emoji are optional.";
+    internal const string Intro = "Each folder becomes a workspace for managing its tabs and conversations. Color and emojis increase visibility but are totally optional.";
     internal const string Empty = "No folders listed yet. Add folder… picks one.";
     internal const string Suggested = "Used most in the agents' history";
     internal const string CardHeading = "Folders";
