@@ -104,6 +104,9 @@ internal sealed class WelcomeView : Grid
     }
 
     /// <summary>Sends the page a message (init, context, skip, replay); one sent before the page is ready goes once it is.</summary>
+    /// <summary>The keyboard to the page, as when it first loaded: after the tour hands the card back.</summary>
+    internal void FocusPage() => _webView.Focus(FocusState.Programmatic);
+
     internal void Send(object message)
     {
         if (_closed) return;

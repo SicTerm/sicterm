@@ -41,8 +41,16 @@ internal sealed partial class MainWindow
         if (_welcomeFilm is not null || _closing) return;
         if (_preferences.WelcomeSeen != WelcomeVersion) { _preferences.WelcomeSeen = WelcomeVersion; SavePreferences(); }
         var view = _welcomeFilm = new WelcomeView(Path.Combine(_options.DataDirectory, "WebView2"), _theme.Base.Color);
-        view.StartRequested += () => DispatcherQueue.TryEnqueue(() => CloseWelcome());
-        view.TourRequested += () => DispatcherQueue.TryEnqueue(async () => { CloseWelcome(); await StartTourAsync(); });
+        // The card comes first, with Watch the demo, Take the tour and Start using SicTerm; the demo and the tour each come back to it
+        // (Chris, November 27, 2026). Start using SicTerm leads on to what this PC still needs (<see cref="StartAfterWelcomeAsync"/>).
+        view.StartRequested += () => DispatcherQueue.TryEnqueue(async () => { CloseWelcome(); await StartAfterWelcomeAsync(); });
+        view.TourRequested += () => DispatcherQueue.TryEnqueue(async () =>
+        {
+            // The film stays loaded, out of sight, for the tour to come back to.
+            _welcomeHost.Visibility = Visibility.Collapsed;
+            _tourFromWelcome = true;
+            await StartTourAsync();
+        });
         // The film's own beats: the chime the window rings for a finished turn, as a demonstration, whatever Settings → Alerts says.
         view.ChimeRequested += () => { if (!_options.SmokeTest) ChimeSound.Play(SoundCatalog.Find(_preferences.ReadyChime ? _preferences.Sound : null)); };
         view.CardShown += () => WelcomeCardShown = true;
@@ -70,6 +78,30 @@ internal sealed partial class MainWindow
     private void SendWelcomeContext() => _welcomeFilm?.Send(WelcomeContext());
 
     private bool WelcomeFactsSettled => !_detecting && (_detectionFailed || _detection.Count > 0) && (_refreshesWithAgents > 0 || _preferences.Agents.All(agent => !agent.IsOn));
+
+    /// <summary>The tour was started from the welcome's card, and goes back to it when it ends.</summary>
+    private bool _tourFromWelcome;
+
+    /// <summary>The card again, after a tour started from it.</summary>
+    private void ReturnToWelcomeCard()
+    {
+        if (!_tourFromWelcome) return;
+        _tourFromWelcome = false;
+        if (_welcomeFilm is not { } view || _closing) return;
+        _welcomeHost.Visibility = Visibility.Visible;
+        view.Send(new { type = "card" });
+        view.FocusPage();
+    }
+
+    /// <summary>
+    /// Start using SicTerm: the home screen shows Get set up while an agent or PowerShell 7 is missing; with an agent and no folder
+    /// listed, Add folders opens, since the person asked to start.
+    /// </summary>
+    private async Task StartAfterWelcomeAsync()
+    {
+        if (_closing || Folders.Count > 0 || !_detection.Values.Any(found => found.Available)) return;
+        await ShowFolderWizardAsync();
+    }
 
     /// <summary>Takes the film away and gives the keyboard back to the window.</summary>
     private void CloseWelcome()
