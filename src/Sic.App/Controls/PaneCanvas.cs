@@ -177,6 +177,7 @@ internal sealed class PaneCanvas : Panel
         pane.RenderTransformOrigin = new Point(0, 0);
         pane.RenderTransform = transform;
         _moving.Add(pane);
+        pane.Terminal?.HoldFit(true);
         foreach (var (property, value) in new[] { ("ScaleX", 1.0), ("ScaleY", 1.0), ("TranslateX", 0.0), ("TranslateY", 0.0) })
         {
             var animation = new DoubleAnimation { To = value, Duration = new Duration(ZoomMotion), EasingFunction = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 5 } };
@@ -200,6 +201,7 @@ internal sealed class PaneCanvas : Panel
         foreach (var pane in _moving)
         {
             pane.RenderTransform = null;
+            pane.Terminal?.HoldFit(false);
             if (pane.Descriptor.Id != _zoomed) Canvas.SetZIndex(pane, 0);
         }
         _moving.Clear();

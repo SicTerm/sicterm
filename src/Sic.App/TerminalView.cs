@@ -280,6 +280,18 @@ internal sealed class TerminalView : Grid, IAsyncDisposable
     }
 
     /// <summary>
+    /// Tells the page a zoom's motion has begun or ended (PaneCanvas): it refits only at the end, then draws itself again in
+    /// full, which clears what a software-drawn browser leaves in the grown part of a pane (seen November 28, 2026 on virtual
+    /// machines without a GPU). A page not ready yet fits when it is.
+    /// </summary>
+    internal void HoldFit(bool held)
+    {
+        if (!Ready.IsCompletedSuccessfully || _disposal is not null) return;
+        try { _webView.CoreWebView2.PostWebMessageAsJson(held ? """{"type":"zooming","on":true}""" : """{"type":"zooming","on":false}"""); }
+        catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or ObjectDisposedException) { }
+    }
+
+    /// <summary>
     /// Tells a ready page its sides; a page still loading hears them when it reports ready. A page whose browser has gone
     /// reports that through its own output and failure paths, and a split or close must not fail over it.
     /// </summary>

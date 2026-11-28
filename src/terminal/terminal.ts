@@ -95,12 +95,37 @@ let copyOnSelect = false;
 let searchActive = '#4cc2ff';
 const firstFamily = (family: string): string => '"' + (family.split(',')[0] ?? '').trim().replace(/["']/g, '') + '"';
 
+let painted = initialBackground;
 const paintBackground = (color: string): void => {
+  painted = color;
   document.documentElement.style.backgroundColor = color;
   document.documentElement.style.setProperty('--terminal-background', color);
   document.body.style.backgroundColor = color;
 };
 paintBackground(initialBackground);
+
+// The whole page drawn again: the background one step of blue off for a couple of frames, then back, which Chromium redraws
+// over the whole page, and every row rendered again. Seen November 28, 2026 on virtual machines drawing in software (no GPU):
+// a pane grown by the zoom kept other windows' pixels in the part of the card nothing had redrawn, until text was written there.
+let repainting = false;
+const repaintAll = (): void => {
+  if (repainting || !HEX.test(painted)) return;
+  repainting = true;
+  const color = painted.slice(0, 7);
+  const off = '#' + color.slice(1, 5) + (parseInt(color.slice(5, 7), 16) ^ 1).toString(16).padStart(2, '0');
+  document.documentElement.style.backgroundColor = off;
+  document.documentElement.style.setProperty('--terminal-background', off);
+  document.body.style.backgroundColor = off;
+  terminal.refresh(0, terminal.rows - 1);
+  // Back on the second frame, or on a timer for a page that runs no frames (hidden); a theme set meanwhile stays.
+  const restore = (): void => {
+    if (!repainting) return;
+    repainting = false;
+    paintBackground(painted);
+  };
+  requestAnimationFrame(() => requestAnimationFrame(restore));
+  window.setTimeout(restore, 500);
+};
 
 // A pane without keyboard focus draws the inactive style, which xterm leaves as a hollow box whatever the chosen cursor, so a
 // cursor changed in Settings (where the focus is) would not show until the pane was clicked. The inactive cursor keeps the
@@ -466,6 +491,8 @@ bridge?.addEventListener('message', event => {
     images.again(event.data as KittyImageAgainMessage);
   } else if (message.type === 'kitty-delete') {
     images.remove(Number((event.data as { id?: unknown }).id) || 0);
+  } else if (message.type === 'zooming') {
+    holdFit((event.data as { on?: unknown }).on === true);
   } else if (message.type === 'pet-images') {
     images.setEnabled((event.data as { on?: unknown }).on === true);
   }
@@ -617,13 +644,27 @@ window.sic = {
 };
 
 // Refit once the size settles: the panel slides and the window is dragged over many frames, and every fit resizes the
-// pseudoconsole, which makes an agent's interface repaint in full each time.
+// pseudoconsole, which makes an agent's interface repaint in full each time. Then the whole page is drawn again (repaintAll).
+// While the host moves the pane for a zoom ('zooming'), the refit waits for the motion's end, so the agent's repaint does not
+// land mid-motion; a hold the host never ends lets go after a second.
 let fitTimer: number | undefined;
+let fitHold: number | undefined;
+const settle = (): void => {
+  if (document.documentElement.clientWidth > 0 && document.documentElement.clientHeight > 0) fit.fit();
+  repaintAll();
+};
+const holdFit = (on: boolean): void => {
+  if (fitTimer !== undefined) { clearTimeout(fitTimer); fitTimer = undefined; }
+  if (fitHold !== undefined) { clearTimeout(fitHold); fitHold = undefined; }
+  if (on) fitHold = window.setTimeout(() => { fitHold = undefined; settle(); }, 1000);
+  else settle();
+};
 new ResizeObserver(() => {
+  if (fitHold !== undefined) return;
   if (fitTimer !== undefined) clearTimeout(fitTimer);
   fitTimer = window.setTimeout(() => {
     fitTimer = undefined;
-    if (document.documentElement.clientWidth > 0 && document.documentElement.clientHeight > 0) fit.fit();
+    settle();
   }, 40);
 }).observe(document.getElementById('terminal')!);
 await document.fonts.ready;
