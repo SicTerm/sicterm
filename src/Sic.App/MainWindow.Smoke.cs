@@ -2614,7 +2614,7 @@ internal sealed partial class MainWindow
                 RefreshSetupAdvice();
                 // The home panel is built for the same gaps, though a tab covers it here: every row with Install alone.
                 var setupRowsBoth = SetupRowFacts() is { Count: 5 } rows && rows.All(row => row.Visible && row.Status == "Not found" && row.Buttons.SequenceEqual(["Install"]))
-                    && rows.Select(row => row.Id).SequenceEqual(["powershell", "claude", "codex", "opencode", "hermes"]) && !SetupHomeShown;
+                    && rows.Select(row => row.Id).SequenceEqual(["powershell", "claude", "codex", "hermes", "opencode"]) && !SetupHomeShown;
                 // Settings: Install on every agent card, and the PowerShell card on 5.1 with Install.
                 var setupCards = await EventuallyAsync(() => _agentRows.Values.All(row => row.Install.Visibility == Visibility.Visible && row.AddPath.Visibility == Visibility.Collapsed)
                     && ShellCardFacts is { Install: true, Status: "Windows PowerShell 5.1" } shellCard && shellCard.Arguments == JsonSerializer.Serialize(_preferences.ShellArguments));

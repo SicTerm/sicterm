@@ -59,8 +59,8 @@ public sealed class SetupAdviceTests
     [Fact]
     public void Items_ArePowerShell7ThenTheFourAgentsEachWithItsVendorsPage()
     {
-        Assert.Equal(["PowerShell 7", "Claude Code", "Codex", "OpenCode", "Hermes"], SetupCatalog.Items.Select(item => item.Name));
-        Assert.Equal(["powershell", "claude", "codex", "opencode", "hermes"], SetupCatalog.Items.Select(item => item.Id));
+        Assert.Equal(["PowerShell 7", "Claude Code", "Codex", "Hermes", "OpenCode"], SetupCatalog.Items.Select(item => item.Name));
+        Assert.Equal(["powershell", "claude", "codex", "hermes", "opencode"], SetupCatalog.Items.Select(item => item.Id));
         // Each page is a vendor's own, over HTTPS; none is a Store page.
         Assert.All(SetupCatalog.Items, item => Assert.Equal(Uri.UriSchemeHttps, item.Page.Scheme));
         Assert.DoesNotContain(SetupCatalog.Items, item => item.Page.Host.StartsWith("apps.", StringComparison.Ordinal));

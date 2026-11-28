@@ -159,14 +159,14 @@ public static class SetupCatalog
             "From OpenAI. Needs a paid ChatGPT plan or an API key.",
             "OpenAI's coding agent.",
             new("https://developers.openai.com/codex/cli")),
-        new("opencode", "OpenCode",
-            "Open source. Works with most model providers. Needs Node.js.",
-            "An open-source coding agent. It has no Windows installer, so it installs through npm, which comes with Node.js.",
-            new("https://opencode.ai/docs")),
         new("hermes", "Hermes",
             "Open source, from Nous Research. Works with most model providers.",
             "An open-source agent from Nous Research. Its installer downloads Git, Python and the agent, which takes several minutes.",
-            new("https://hermes-agent.nousresearch.com/docs/getting-started/installation"))
+            new("https://hermes-agent.nousresearch.com/docs/getting-started/installation")),
+        new("opencode", "OpenCode",
+            "Open source. Works with most model providers. Needs Node.js.",
+            "An open-source coding agent. It has no Windows installer, so it installs through npm, which comes with Node.js.",
+            new("https://opencode.ai/docs"))
     ];
 
     public static SetupItem? Item(string id) => Items.FirstOrDefault(item => item.Id == id);

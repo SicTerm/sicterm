@@ -289,9 +289,10 @@ public sealed class AgentLaunchBuilderTests
     public void BuiltInAgents_MergeAddsOnlyTheAgentsASavedListLacks()
     {
         var builtIn = BuiltInAgents.Create(@"C:\Users\someone", @"C:\hermes");
-        AgentDefinition[] saved = [builtIn[1] with { Executable = "claude-custom" }, builtIn[0]];
+        // Saved in the old order, Hermes first, with an agent of the user's own: the built-ins come in Create's order, settings kept.
+        AgentDefinition[] saved = [builtIn[2], builtIn[0] with { Executable = "claude-custom" }, new("copilot", "Copilot", "copilot", [], @"C:\copilot", true)];
         var merged = BuiltInAgents.Merge(saved, builtIn);
-        Assert.Equal(["claude", "hermes", "codex", "opencode"], merged.Select(agent => agent.Id));
+        Assert.Equal(["claude", "codex", "hermes", "opencode", "copilot"], merged.Select(agent => agent.Id));
         Assert.Equal("claude-custom", merged[0].Executable);
         Assert.Equal("opencode", Path.GetFileName(merged[3].HistoryDirectory));
         Assert.All(builtIn, agent => Assert.Null(agent.Enabled));

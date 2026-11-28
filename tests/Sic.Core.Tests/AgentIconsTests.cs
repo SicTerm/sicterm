@@ -120,7 +120,7 @@ public sealed class AgentIconsTests
     public void EachAgentHasADistinctLetter()
     {
         var letters = Agents.Select(agent => AgentIcons.Letter(agent.Id)).ToArray();
-        Assert.Equal(["H", "C", "X", "O"], letters);
+        Assert.Equal(["C", "X", "H", "O"], letters);
     }
 
     [Fact]
