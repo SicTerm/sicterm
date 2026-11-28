@@ -90,6 +90,17 @@ public static class SetupCatalog
 
     public static string WingetInstalled(string then) => "winget is installed. " + then + " can be installed now.";
 
+    /// <summary>
+    /// Under <see cref="NeedsWinget"/>: what PowerShell asks while <see cref="WingetCommand"/> runs, said before Install so the
+    /// gallery's "untrusted repository" warning is expected (Chris, November 27, 2026). Its default is No.
+    /// </summary>
+    public const string WingetQuestions = "PowerShell asks two questions during the install. The first adds NuGet, which PowerShell uses to download modules. " +
+        "The second calls PSGallery an untrusted repository. PSGallery is the PowerShell Gallery, run by Microsoft, and every PC lists it as untrusted " +
+        "until that is changed. The WinGet module comes from Microsoft. Y answers both. Choosing N cancels the install.";
+
+    /// <summary>The notice over winget's tab once its command is typed.</summary>
+    public const string TypedWinget = "Press Enter to install. Answer Y to both of PowerShell's questions.";
+
     /// <summary>OpenCode's popup on a PC without npm.</summary>
     public const string OpenCodeNeedsNode = "Node.js is not installed. It installs for all users, so Windows asks for admin rights during setup.";
 

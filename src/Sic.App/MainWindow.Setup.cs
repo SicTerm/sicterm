@@ -402,6 +402,8 @@ internal sealed partial class MainWindow
         {
             var winget = _theme.BodyText(SetupCatalog.NeedsWinget(next.Name), 13); winget.TextWrapping = TextWrapping.Wrap;
             content.Children.Add(winget);
+            var questions = _theme.BodyText(SetupCatalog.WingetQuestions, 13); questions.TextWrapping = TextWrapping.Wrap;
+            content.Children.Add(questions);
         }
         if (command is not null)
         {
@@ -503,7 +505,7 @@ internal sealed partial class MainWindow
             if (_closing || !AllPanes.Contains(pane) || !pane.IsRunning) return;
             await pane.PasteTextAsync(command);
             Diagnostics.Log("setup: typed the install command for " + item.Id);
-            Notify(InfoBarSeverity.Informational, "Install " + item.Name, SetupCatalog.Typed);
+            Notify(InfoBarSeverity.Informational, "Install " + item.Name, item.Id == SetupCatalog.Winget.Id ? SetupCatalog.TypedWinget : SetupCatalog.Typed);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException) { ShowError(exception.Message); }
     }
