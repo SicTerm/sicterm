@@ -130,14 +130,13 @@ internal sealed partial class MainWindow
 
     /// <summary>
     /// A folder's row: its tick with the folder's name over its path, then its color (a swatch that opens the colors) and its
-    /// emoji (a small box, with a button that opens Windows' emoji panel over it). For the smoke too, which adds folders without the picker.
+    /// emoji (a button that opens Windows' emoji panel and shows the emoji chosen). For the smoke too, which adds folders without the picker.
     /// </summary>
     internal void AddWizardRow(string folder, bool suggested)
     {
         if (_wizardFolders is null || _wizardList is null) return;
         var grid = new Grid { ColumnSpacing = 8, Padding = new Thickness(0, 4, 0, 4) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var label = new StackPanel { Spacing = 0 };
@@ -149,12 +148,14 @@ internal sealed partial class MainWindow
         check.Checked += (_, _) => RefreshWizard();
         check.Unchecked += (_, _) => RefreshWizard();
         grid.Children.Add(check);
+        // The emoji sits on a button, as a folder's own Emoji… does: the button opens Windows' emoji panel over an unseen box
+        // behind it and shows the emoji chosen; with one chosen, it offers Change emoji… and Remove emoji.
         var emoji = new TextBox
         {
-            Width = 52, MinWidth = 0, MaxLength = FolderMarks.MaxLength, PlaceholderText = "Emoji", TextAlignment = TextAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center, FontSize = 13
+            Width = 32, Height = 32, MinWidth = 0, MinHeight = 0, Padding = new Thickness(0), BorderThickness = new Thickness(0), Opacity = 0,
+            IsHitTestVisible = false, IsTabStop = false, MaxLength = FolderMarks.MaxLength, VerticalAlignment = VerticalAlignment.Center
         };
-        AutomationProperties.SetName(emoji, "Emoji for " + Paths.Leaf(folder));
+        AutomationProperties.SetName(emoji, "Emoji box for " + Paths.Leaf(folder));
         var row = new WizardFolder { Path = folder, Check = check, Emoji = emoji, Suggested = suggested };
         var swatch = new Border { Width = 18, Height = 18, CornerRadius = new CornerRadius(9), BorderThickness = new Thickness(1), BorderBrush = _theme.StrokeStrong };
         var color = new Button { Content = swatch, Width = 32, Height = 32, Padding = new Thickness(0), VerticalAlignment = VerticalAlignment.Center };
@@ -166,7 +167,6 @@ internal sealed partial class MainWindow
             AutomationProperties.SetName(color, "Color for " + Paths.Leaf(folder) + (hex is null ? ", none" : ""));
         }
         PaintSwatch();
-        row.Repaint = PaintSwatch;
         color.Click += (_, _) =>
         {
             var flyout = new Flyout { Placement = FlyoutPlacementMode.Bottom };
@@ -184,30 +184,66 @@ internal sealed partial class MainWindow
             flyout.ShowAt(color);
         };
         Grid.SetColumn(color, 1); grid.Children.Add(color);
-        // One emoji kept: the last one typed or chosen, as the Folders panel's own emoji does.
-        var keeping = false;
-        emoji.TextChanged += (_, _) =>
+        var pick = new Button { Width = 32, Height = 32, Padding = new Thickness(0), VerticalAlignment = VerticalAlignment.Center };
+        void PaintEmoji()
         {
-            if (keeping) return;
             var mark = FolderMarks.Last(emoji.Text);
-            if ((mark ?? "") == emoji.Text) return;
-            keeping = true;
-            try { emoji.Text = mark ?? ""; emoji.SelectionStart = emoji.Text.Length; }
-            finally { keeping = false; }
-        };
-        Grid.SetColumn(emoji, 2); grid.Children.Add(emoji);
-        var pick = _theme.IconButton(((char)0xE76E).ToString(), "Choose an emoji", 32, 14);
-        AutomationProperties.SetName(pick, "Choose an emoji for " + Paths.Leaf(folder));
-        pick.VerticalAlignment = VerticalAlignment.Center;
-        pick.Click += async (_, _) =>
+            pick.Content = mark is null
+                ? new FontIcon { Glyph = ((char)0xE76E).ToString(), FontFamily = Theme.Icons, FontSize = 14, Foreground = _theme.TextTertiary }
+                : new TextBlock { Text = mark, FontFamily = EmojiFont, FontSize = 16, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            ToolTipService.SetToolTip(pick, mark is null ? "Emoji: none" : "Emoji");
+            AutomationProperties.SetName(pick, "Emoji for " + Paths.Leaf(folder) + (mark is null ? ", none" : ", " + mark));
+        }
+        async Task OpenPanelAsync()
         {
+            // A control that is no tab stop takes no focus; the box is one until it loses the focus again.
+            emoji.IsTabStop = true;
             emoji.Focus(FocusState.Programmatic);
             if (_options.SmokeTest) return;
             // The panel attaches to the control focused when the chord arrives; a moment lets the focus settle.
             await Task.Delay(80);
             if (!EmojiPanel.Open()) SayInWizard("The emoji panel did not open. Win + . opens it.");
+        }
+        // One emoji kept, the last one chosen. TextChanging, not TextChanged: the box is never drawn (see BuildFolderEmojiBox).
+        var keeping = false;
+        emoji.TextChanging += (_, _) =>
+        {
+            if (keeping) return;
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                var mark = FolderMarks.Last(emoji.Text);
+                if ((mark ?? "") != emoji.Text)
+                {
+                    keeping = true;
+                    try { emoji.Text = mark ?? ""; } finally { keeping = false; }
+                }
+                PaintEmoji();
+            });
         };
-        Grid.SetColumn(pick, 3); grid.Children.Add(pick);
+        // Escape or Enter ends the choosing, back on the button, and not on the popup's own buttons.
+        emoji.KeyDown += (_, args) =>
+        {
+            if (args.Key is not (Windows.System.VirtualKey.Escape or Windows.System.VirtualKey.Enter)) return;
+            args.Handled = true;
+            pick.Focus(FocusState.Keyboard);
+        };
+        emoji.LostFocus += (_, _) => emoji.IsTabStop = false;
+        pick.Click += async (_, _) =>
+        {
+            if (FolderMarks.Last(emoji.Text) is null) { await OpenPanelAsync(); return; }
+            var menu = new MenuFlyout { Placement = FlyoutPlacementMode.Bottom };
+            var change = new MenuFlyoutItem { Text = "Change emoji…", Icon = new FontIcon { Glyph = ((char)0xE76E).ToString(), FontFamily = Theme.Icons } };
+            change.Click += async (_, _) => await OpenPanelAsync();
+            var remove = new MenuFlyoutItem { Text = "Remove emoji", Icon = new FontIcon { Glyph = ((char)0xE711).ToString(), FontFamily = Theme.Icons } };
+            remove.Click += (_, _) => { emoji.Text = ""; PaintEmoji(); };
+            menu.Items.Add(change);
+            menu.Items.Add(remove);
+            menu.ShowAt(pick);
+        };
+        PaintEmoji();
+        row.Repaint = () => { PaintSwatch(); PaintEmoji(); };
+        Grid.SetColumn(emoji, 2); grid.Children.Add(emoji);
+        Grid.SetColumn(pick, 2); grid.Children.Add(pick);
         _wizardFolders.Add(row);
         _wizardList.Children.Add(grid);
     }

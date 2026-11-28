@@ -334,7 +334,7 @@ internal sealed partial class MainWindow
                 var agent = row.Item.Id != SetupCatalog.PowerShell;
                 var found = SetupFound(row.Item, gaps);
                 var needsPath = found && row.Item.Id == "claude" && offPath;
-                (row.Status.Text, row.Status.Foreground) = found ? ("Detected", _theme.Success) : agent && checking ? ("Checking…", _theme.TextTertiary) : ("Not found", _theme.TextTertiary);
+                (row.Status.Text, row.Status.Foreground) = found ? ("Detected", _theme.Success) : agent && checking ? ("Checking…", _theme.TextTertiary) : ("Not found", _theme.Warning);
                 row.Line.Text = needsPath ? SetupCatalog.ClaudeOffPath : row.Item.Line;
                 row.Install.Visibility = found ? Visibility.Collapsed : Visibility.Visible;
                 row.Start.Visibility = found && agent ? Visibility.Visible : Visibility.Collapsed;

@@ -272,11 +272,11 @@ internal sealed partial class MainWindow
             // The last stop says what to do next on this PC (Chris: "make sure they know what they need to do next").
             !agent
                 ? new("Next: install a coding agent",
-                    "Get set up installs one. Then New session (Ctrl+Shift+T) starts it in any folder.",
+                    "\"Get set up\" installs one. Then New session (Ctrl+Shift+T) starts it in any folder.",
                     () => null, Next: "Done")
                 : folders == 0
                     ? new("Next: add folders",
-                        "Add folders lists the folders used most, ready to tick. Then New session (Ctrl+Shift+T) starts an agent in any of them.",
+                        "\"Add folders\" lists the folders used most, ready to tick. Then New session (Ctrl+Shift+T) starts an agent in any of them.",
                         () => null, Next: "Done")
                     : new("Ready",
                         "New session (Ctrl+Shift+T) starts an agent in any folder. Ctrl+Shift+K finds any saved conversation, and F5 resumes everything waiting after a restart.",
