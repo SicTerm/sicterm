@@ -303,6 +303,6 @@ internal static class FolderWizardText
     internal const string Empty = "No folders listed yet. Add folder… picks one.";
     internal const string Suggested = "Used most in the agents' history";
     internal const string CardHeading = "Folders";
-    internal const string CardLine = "Each folder listed becomes a workspace, where its tabs and conversations gather. More can be added at any time from the Folders panel.";
+    internal const string CardLine = "Each folder becomes a workspace for managing its tabs and conversations. More can be added at any time from the Folders panel.";
     internal const string NewSessionLine = "Folders keep sessions organized.";
 }
