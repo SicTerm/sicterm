@@ -52,6 +52,7 @@ internal sealed partial class MainWindow
     private TextBlock _previewExcerpt = null!;
     private Border _previewState = null!;
     private TextBlock _previewStateText = null!;
+    private Microsoft.UI.Xaml.Shapes.Ellipse _previewStateDot = null!, _groupStateDot = null!;
     private TextBlock _previewNote = null!;
     private Button _previewResume = null!;
     private Conversation? _selectedConversation;
@@ -232,12 +233,7 @@ internal sealed partial class MainWindow
         _previewResume.Click += async (_, _) => { if (_selectedConversation is { } conversation) await ResumeConversationAsync(conversation, new("the Resume button in Sessions", DateTimeOffset.UtcNow)); };
         _previewResume.DoubleTapped += (_, args) => args.Handled = true;
         actions.Children.Add(_previewResume);
-        _previewStateText = new TextBlock { FontSize = 11, FontFamily = Theme.Body, Foreground = _theme.Text, FontWeight = new Windows.UI.Text.FontWeight { Weight = 600 } };
-        _previewState = new Border
-        {
-            Background = _theme.AccentSoft, CornerRadius = new CornerRadius(4), Padding = new Thickness(6, 1, 6, 2), Child = _previewStateText,
-            Visibility = Visibility.Collapsed, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Left
-        };
+        (_previewState, _previewStateDot, _previewStateText) = StateLabel();
         Grid.SetColumn(_previewState, 1); actions.Children.Add(_previewState);
         var open = _theme.IconButton("\uE712", "Open as a tab or in a split, or copy the session ID", 30, 14);
         AutomationProperties.SetName(open, "More ways to open");
@@ -302,12 +298,7 @@ internal sealed partial class MainWindow
         _groupResume.Click += async (_, _) => { if (_selectedGroup is { } group) await ResumeGroupAsync(group, new("the Resume button on a pinned tab in Sessions", DateTimeOffset.UtcNow)); };
         _groupResume.DoubleTapped += (_, args) => args.Handled = true;
         actions.Children.Add(_groupResume);
-        _groupStateText = new TextBlock { FontSize = 11, FontFamily = Theme.Body, Foreground = _theme.Text, FontWeight = new Windows.UI.Text.FontWeight { Weight = 600 } };
-        _groupState = new Border
-        {
-            Background = _theme.AccentSoft, CornerRadius = new CornerRadius(4), Padding = new Thickness(6, 1, 6, 2), Child = _groupStateText,
-            Visibility = Visibility.Collapsed, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Left
-        };
+        (_groupState, _groupStateDot, _groupStateText) = StateLabel();
         Grid.SetColumn(_groupState, 1); actions.Children.Add(_groupState);
         var open = _theme.IconButton("", "Open the tab without resuming it, or unpin it", 30, 14);
         AutomationProperties.SetName(open, "More ways to open");
@@ -357,7 +348,7 @@ internal sealed partial class MainWindow
         var host = HostOfGroup(group);
         var running = host is not null && host.Panes.Any(pane => pane.IsRunning);
         _groupState.Visibility = host is null ? Visibility.Collapsed : Visibility.Visible;
-        _groupStateText.Text = running ? "Running" : "Open in a tab";
+        PaintStateLabel(_groupStateDot, _groupStateText, running);
         _groupResume.Content = host is not null && host.Panes.All(pane => pane.IsRunning) ? "Go to tab" : "Resume";
     }
 
@@ -1118,6 +1109,31 @@ internal sealed partial class MainWindow
         catch (Exception exception) { _previewExcerpt.Text = "Transcript unavailable: " + exception.Message; }
     }
 
+    /// <summary>
+    /// The state beside Resume when the conversation or pinned tab has a tab here: a dot and plain text, not a chip, so it is not
+    /// taken for a button (the owner read the chip "Open in a tab" as one, November 27, 2026).
+    /// </summary>
+    private (Border Host, Microsoft.UI.Xaml.Shapes.Ellipse Dot, TextBlock Text) StateLabel()
+    {
+        var dot = new Microsoft.UI.Xaml.Shapes.Ellipse { Width = 6, Height = 6, VerticalAlignment = VerticalAlignment.Center };
+        var text = new TextBlock { FontSize = 11, FontFamily = Theme.Body, Foreground = _theme.TextSecondary, VerticalAlignment = VerticalAlignment.Center };
+        var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        line.Children.Add(dot);
+        line.Children.Add(text);
+        var host = new Border
+        {
+            Child = line, Padding = new Thickness(4, 0, 0, 0), Visibility = Visibility.Collapsed,
+            VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Left
+        };
+        return (host, dot, text);
+    }
+
+    private void PaintStateLabel(Microsoft.UI.Xaml.Shapes.Ellipse dot, TextBlock text, bool running)
+    {
+        text.Text = running ? "Running" : "In a tab · not running";
+        dot.Fill = running ? _theme.SuccessDot : _theme.TextTertiary;
+    }
+
     /// <summary>How much of a transcript the preview card reads first for its excerpt.</summary>
     private const int ExcerptScan = 256 * 1024;
 
@@ -1126,7 +1142,7 @@ internal sealed partial class MainWindow
         var pane = FindPane(conversation);
         var running = pane?.IsRunning == true;
         _previewState.Visibility = pane is null ? Visibility.Collapsed : Visibility.Visible;
-        _previewStateText.Text = running ? "Running" : "Open in a tab";
+        PaintStateLabel(_previewStateDot, _previewStateText, running);
         _previewResume.Content = running ? "Go to terminal" : "Resume";
         // Going to a running terminal needs no folder; a resume needs one SIC knows, as the resume itself checks.
         var resumable = running || FolderOf(conversation) is not null;

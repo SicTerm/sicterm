@@ -179,6 +179,7 @@ internal sealed partial class MainWindow
     {
         if (item.Id == SetupCatalog.PowerShell) return !gaps.HasFlag(SetupGap.PowerShell);
         if (item.Id == SetupCatalog.Node.Id) return SetupNpm;
+        if (item.Id == SetupCatalog.Winget.Id) return SetupWinget;
         // The smoke's stand-in for a PC without agents: none of them counts.
         if (SetupGapsOverride is { } forced && forced.HasFlag(SetupGap.Agent)) return false;
         return _detection.GetValueOrDefault(item.Id)?.Available == true;
@@ -199,9 +200,15 @@ internal sealed partial class MainWindow
     }
 
     /// <summary>The command Install would type for <paramref name="item"/> on this PC, null where the popup offers the install page.</summary>
-    private static string? SetupCommand(SetupItem item) => SetupCatalog.Command(item.Id, SetupWinget, SetupNpm);
+    private string? SetupCommand(SetupItem item) => SetupCatalog.Command(item.Id, SetupWinget, SetupNpm);
 
-    private static bool SetupWinget => PathList.Find("winget.exe") is not null;
+    /// <summary>winget's absence in place of the real answer, for the smoke and a preview; null in use.</summary>
+    internal bool? SetupWingetOverride { get; set; }
+
+    private bool SetupWinget => SetupWingetOverride ?? PathList.Find("winget.exe") is not null;
+
+    /// <summary>The items found by their own check rather than by agent detection: PowerShell 7, Node.js and winget.</summary>
+    private static bool SetupTool(string id) => id is SetupCatalog.PowerShell or "node" or "winget";
     private static bool SetupNpm => PathList.Find("npm.cmd") is not null;
 
     /// <summary>
@@ -365,16 +372,21 @@ internal sealed partial class MainWindow
 
     /// <summary>
     /// Install, from the home panel or an agent's card in Settings: a popup with the line under the name, the longer text, the
-    /// command with Copy, and Install, which closes the popup and then opens the tab (Chris, November 27, 2026). Where this PC
-    /// cannot run the command (no winget for PowerShell 7) the popup's button opens the vendor's page instead. OpenCode without
+    /// command with Copy, and Install, which closes the popup and then opens the tab (Chris, November 27, 2026). OpenCode without
     /// npm leads with Node.js, which installs for all users, so Windows asks for admin rights as its installer starts, in the
-    /// tab, where SicTerm can still watch it; nothing SicTerm runs is elevated.
+    /// tab, where SicTerm can still watch it; nothing SicTerm runs is elevated. PowerShell 7 and Node.js install through winget,
+    /// so without it their popups lead with winget (Chris, November 27, 2026); where a command still cannot run, the popup's
+    /// button opens the vendor's page.
     /// </summary>
     internal async Task ShowInstallAsync(SetupItem item)
     {
         if (_dialogsOpen > 0) return;
         var needsNode = item.Id == "opencode" && !SetupNpm;
-        var step = needsNode ? SetupCatalog.Node : item;
+        // What the popup leads to, and the step before it where that goes through winget and winget is missing.
+        var next = needsNode ? SetupCatalog.Node : item;
+        var needsWinget = next.Id is SetupCatalog.PowerShell or "node" && !SetupWinget;
+        var step = needsWinget ? SetupCatalog.Winget : next;
+        var after = needsWinget ? next : item;
         var command = SetupCommand(step);
         var content = new StackPanel { Spacing = 10, MinWidth = 460, MaxWidth = 560 };
         var line = _theme.BodyText(item.Line, 13, 600); line.TextWrapping = TextWrapping.Wrap;
@@ -386,9 +398,14 @@ internal sealed partial class MainWindow
             var node = _theme.BodyText(SetupCatalog.OpenCodeNeedsNode, 13); node.TextWrapping = TextWrapping.Wrap;
             content.Children.Add(node);
         }
+        if (needsWinget)
+        {
+            var winget = _theme.BodyText(SetupCatalog.NeedsWinget(next.Name), 13); winget.TextWrapping = TextWrapping.Wrap;
+            content.Children.Add(winget);
+        }
         if (command is not null)
         {
-            content.Children.Add(_theme.Eyebrow(needsNode ? "Node.js command" : "Command"));
+            content.Children.Add(_theme.Eyebrow(step == item ? "Command" : step.Name + " command"));
             var row = new Grid { ColumnSpacing = 6 };
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -407,13 +424,13 @@ internal sealed partial class MainWindow
             };
             Grid.SetColumn(copy, 1); row.Children.Add(copy);
             content.Children.Add(row);
-            var footnote = _theme.Tertiary(needsNode ? SetupCatalog.NodeFootnote : SetupCatalog.PopupFootnote); footnote.TextWrapping = TextWrapping.Wrap; footnote.TextTrimming = TextTrimming.None;
+            var footnote = _theme.Tertiary(step == item ? SetupCatalog.PopupFootnote : SetupCatalog.StepFootnote(step.Name, after.Name)); footnote.TextWrapping = TextWrapping.Wrap; footnote.TextTrimming = TextTrimming.None;
             content.Children.Add(footnote);
         }
-        var primary = command is null ? (needsNode ? "Node.js install page" : "Install page") : needsNode ? "Install Node.js" : "Install";
+        var primary = command is null ? (step == item ? "Install page" : step.Name + " install page") : step == item ? "Install" : "Install " + step.Name;
         var dialog = Dialog("Install " + item.Name, content, primary);
         // The vendor's page beside the command, for whoever would rather read it first; with no command the page is the main button.
-        if (command is not null) dialog.SecondaryButtonText = needsNode ? "OpenCode's page" : "Install page";
+        if (command is not null) dialog.SecondaryButtonText = step == item ? "Install page" : item.Name + "'s page";
         InstallPopup = (dialog, item.Id, command, primary);
         ContentDialogResult result;
         try { result = await dialog.ShowAsync(); }
@@ -422,7 +439,7 @@ internal sealed partial class MainWindow
         else if (result == ContentDialogResult.Primary)
         {
             if (command is null) OpenSetupPage(step);
-            else await InstallAsync(step, command);
+            else await InstallAsync(step, command, step == item ? null : item);
         }
     }
 
@@ -433,6 +450,8 @@ internal sealed partial class MainWindow
     {
         internal required SetupItem Item { get; init; }
         internal required SessionPane Pane { get; init; }
+        /// <summary>The install this one is a step toward (OpenCode after Node.js, PowerShell 7 after winget), offered once it is found.</summary>
+        internal SetupItem? Then { get; init; }
         internal DateTimeOffset Started { get; } = DateTimeOffset.UtcNow;
         internal int Ticks { get; set; }
         internal bool ProgramSeen { get; set; }
@@ -458,14 +477,14 @@ internal sealed partial class MainWindow
     /// the prompt is there, and not run. Text sent while the pane was still starting was lost in a Windows Sandbox run, so the
     /// typing waits for the prompt (<see cref="ShellPrompt"/>), or for the screen to stop changing under a profile's own prompt.
     /// </summary>
-    internal async Task InstallAsync(SetupItem item, string command)
+    internal async Task InstallAsync(SetupItem item, string command, SetupItem? then = null)
     {
         try
         {
             var folder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             if (await StartNewAsync("shell", folder, title: "Install " + item.Name) is not { } pane) return;
             _installs.RemoveAll(install => install.Item.Id == item.Id);
-            var install = new SetupInstall { Item = item, Pane = pane };
+            var install = new SetupInstall { Item = item, Pane = pane, Then = then };
             _installs.Add(install);
             // The tab's shell says when a command starts and when its prompt is back; the prompt back after the install command
             // ran is the moment to look, rather than the next tick or the screen holding still.
@@ -541,8 +560,9 @@ internal sealed partial class MainWindow
         try
         {
             var detect = false;
-            // Node.js's installer changes the PC's Path; SicTerm's own follows it here as well as on Windows' word.
-            if (_installs.Any(install => install.Item.Id == SetupCatalog.Node.Id)) EnvironmentRefresh.Apply();
+            // Node.js's installer changes the PC's Path, and winget's alias lands in a folder Path may have gained with it; SicTerm's
+            // own Path follows here as well as on Windows' word.
+            if (_installs.Any(install => install.Item.Id is "node" or "winget")) EnvironmentRefresh.Apply();
             foreach (var install in _installs.ToList())
             {
                 var open = AllPanes.Contains(install.Pane);
@@ -553,14 +573,14 @@ internal sealed partial class MainWindow
                     if (install.LookNow)
                     {
                         install.LookNow = false;
-                        if (install.Item.Id == SetupCatalog.PowerShell) RefreshSetupAdvice(); else if (install.Item.Id != "node") detect = true;
+                        if (install.Item.Id == SetupCatalog.PowerShell) RefreshSetupAdvice(); else if (!SetupTool(install.Item.Id)) detect = true;
                     }
                     if (!install.ProgramSeen && SetupProgramThere(install.Item))
                     {
                         install.ProgramSeen = true;
                         if (install.Item.Id == SetupCatalog.PowerShell) RefreshSetupAdvice(); else detect = true;
                     }
-                    else if (install.Item.Id is not (SetupCatalog.PowerShell or "node") && install.Ticks % 8 == 0 && DateTimeOffset.UtcNow - install.Started < InstallWatch) detect = true;
+                    else if (!SetupTool(install.Item.Id) && install.Ticks % 8 == 0 && DateTimeOffset.UtcNow - install.Started < InstallWatch) detect = true;
                     continue;
                 }
                 if (open && !install.Ended && install.Settling < 30 && install.Pane.Terminal is { } terminal && install.Pane.IsRunning)
@@ -572,7 +592,7 @@ internal sealed partial class MainWindow
                     if (screen is not null && screen != install.Screen) { install.Screen = screen; continue; }
                 }
                 _installs.Remove(install);
-                ShowInstalled(install.Item, open ? install.Pane : null);
+                ShowInstalled(install.Item, open ? install.Pane : null, install.Then);
             }
             if (detect && !_detecting)
             {
@@ -601,23 +621,29 @@ internal sealed partial class MainWindow
     /// <summary>
     /// The notice once an install is found, with Close tab for the install's tab while it is open (nothing closes it by itself:
     /// PowerShell 7 is found before winget has finished, and a failure is only explained there). An agent adds Start a session,
-    /// which closes the tab too, and says where the other agents are; Claude Code off Path adds Add to PATH; Node.js leads on to
-    /// OpenCode's popup.
+    /// which closes the tab too, and says where the other agents are; Claude Code off Path adds Add to PATH. A step leads on to
+    /// the popup it was taken from (<paramref name="then"/>): Node.js to OpenCode's, winget to PowerShell 7's or OpenCode's, whose
+    /// popup then leads with Node.js where npm is still missing.
     /// </summary>
-    internal void ShowInstalled(SetupItem item, SessionPane? pane)
+    internal void ShowInstalled(SetupItem item, SessionPane? pane, SetupItem? then = null)
     {
         if (_closing) return;
         RefreshSetupAdvice();
+        if (item.Id == SetupCatalog.Node.Id) then ??= SetupCatalog.Item("opencode");
         var offPath = item.Id == "claude" && ClaudeOffPath();
         var message = item.Id == SetupCatalog.PowerShell ? SetupCatalog.PowerShellInstalled
             : item.Id == SetupCatalog.Node.Id ? SetupCatalog.NodeInstalled
+            : item.Id == SetupCatalog.Winget.Id ? SetupCatalog.WingetInstalled(then is null ? "PowerShell 7" : NextStepName(then))
             : offPath ? SetupCatalog.ClaudeOffPathNotice : SetupCatalog.AgentInstalled(item.Name);
         Diagnostics.Log("setup: " + item.Id + " installed" + (offPath ? ", its folder off Path" : ""));
-        var actions = InstalledActions(item, offPath, pane);
+        var actions = InstalledActions(item, offPath, pane, then);
         ShowNotice(InfoBarSeverity.Success, "", message, null, brief: false, content: actions.Children.Count == 0 ? null : actions);
     }
 
-    private StackPanel InstalledActions(SetupItem item, bool offPath, SessionPane? pane)
+    /// <summary>What <paramref name="item"/>'s popup installs first on this PC: Node.js for OpenCode without npm, else the item.</summary>
+    private string NextStepName(SetupItem item) => item.Id == "opencode" && !SetupNpm ? SetupCatalog.Node.Name : item.Name;
+
+    private StackPanel InstalledActions(SetupItem item, bool offPath, SessionPane? pane, SetupItem? then)
     {
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 0, 0, 12) };
         if (offPath)
@@ -626,13 +652,13 @@ internal sealed partial class MainWindow
             add.Click += (_, _) => AddClaudeToPath(pane);
             actions.Children.Add(add);
         }
-        if (item.Id == SetupCatalog.Node.Id && SetupCatalog.Item("opencode") is { } openCode)
+        if (then is not null)
         {
-            var next = Theme.TextButton("Install OpenCode");
-            next.Click += async (_, _) => { await CloseInstallTabAsync(pane); await ShowInstallAsync(openCode); };
+            var next = Theme.TextButton("Install " + NextStepName(then));
+            next.Click += async (_, _) => { await CloseInstallTabAsync(pane); await ShowInstallAsync(then); };
             actions.Children.Add(next);
         }
-        else if (item.Id is not (SetupCatalog.PowerShell or "node"))
+        else if (!SetupTool(item.Id))
         {
             var start = Theme.TextButton("Start a session");
             start.Click += async (_, _) => await StartSetupSessionAsync(item.Id, pane);
@@ -668,7 +694,7 @@ internal sealed partial class MainWindow
             var added = UserPath.Add(ClaudeFolder, UserPathKeyOverride ?? UserPath.EnvironmentKey);
             Diagnostics.Log("setup: " + ClaudeFolder + (added ? " added to the account's Path" : " was already on the account's Path"));
             if (SetupCatalog.Item("claude") is { } claude)
-                ShowNotice(InfoBarSeverity.Success, "", SetupCatalog.ClaudeOnPathNotice, null, brief: false, content: InstalledActions(claude, offPath: false, pane));
+                ShowNotice(InfoBarSeverity.Success, "", SetupCatalog.ClaudeOnPathNotice, null, brief: false, content: InstalledActions(claude, offPath: false, pane, then: null));
             RefreshSetupAdvice();
         }
         catch (Exception exception) when (exception is UnauthorizedAccessException or System.Security.SecurityException or IOException)

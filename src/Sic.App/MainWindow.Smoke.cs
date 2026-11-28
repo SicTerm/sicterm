@@ -2633,6 +2633,22 @@ internal sealed partial class MainWindow
                 }
                 await popupTask.WaitAsync(TimeSpan.FromSeconds(10));
                 setupPopup = setupPopup && InstallPopup is null && SetupInstalls.Count == 0;
+                // No winget: PowerShell 7's popup leads with winget's command, and winget found offers PowerShell 7's popup next.
+                SetupWingetOverride = false;
+                var wingetTask = ShowInstallAsync(SetupCatalog.Item(SetupCatalog.PowerShell)!);
+                var wingetPopup = await EventuallyAsync(() => InstallPopup is { Id: SetupCatalog.PowerShell, Primary: "Install winget" } popup
+                    && popup.Command == SetupCatalog.WingetCommand && popup.Dialog.SecondaryButtonText == "PowerShell 7's page");
+                await Task.Delay(300);
+                if (InstallPopup is { } wingetShown)
+                {
+                    try { await CaptureAsync(wingetShown.Dialog, Path.Combine(data, "winget-popup-native.png")); } catch (Exception exception) when (exception is not OutOfMemoryException) { Diagnostics.Log("smoke winget popup capture: " + exception.Message); }
+                    wingetShown.Dialog.Hide();
+                }
+                await wingetTask.WaitAsync(TimeSpan.FromSeconds(10));
+                wingetPopup = wingetPopup && InstallPopup is null && SetupInstalls.Count == 0;
+                SetupWingetOverride = null;
+                if (!wingetPopup) Diagnostics.Log("smoke: the winget popup or its notice was not as laid out");
+                setupPopup = setupPopup && wingetPopup;
                 // An agent found: the notice says PowerShell alone, the home rows of the agents found offer Start a session, their cards lose Install.
                 SetupGapsOverride = SetupGap.PowerShell;
                 RefreshSetupAdvice();
@@ -2663,6 +2679,10 @@ internal sealed partial class MainWindow
                 var setupInstalled = _notice.IsOpen && _notice.Message == SetupCatalog.PowerShellInstalled && _notice.Content is null;
                 ShowInstalled(SetupCatalog.Item("codex")!, null);
                 setupInstalled = setupInstalled && _notice.Message == SetupCatalog.AgentInstalled("Codex") && _notice.Content is StackPanel { Children: [Button { Content: "Start a session" }] };
+                // winget found, from PowerShell 7's popup: the notice offers that popup next.
+                ShowInstalled(SetupCatalog.Winget, null, SetupCatalog.Item(SetupCatalog.PowerShell));
+                setupInstalled = setupInstalled && _notice.Message == SetupCatalog.WingetInstalled("PowerShell 7")
+                    && _notice.Content is StackPanel { Children: [Button { Content: "Install PowerShell 7" }] };
                 _notice.IsOpen = false;
                 // Claude Code where its installer put it, its folder off Path: its row and card have Add to PATH.
                 var setupOffPath = true;
@@ -2705,7 +2725,7 @@ internal sealed partial class MainWindow
             }
             finally
             {
-                SetupGapsOverride = null; ClaudeOffPathOverride = null; UserPathKeyOverride = null;
+                SetupGapsOverride = null; ClaudeOffPathOverride = null; UserPathKeyOverride = null; SetupWingetOverride = null;
                 try { Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(setupScratchKey, throwOnMissingSubKey: false); }
                 catch (Exception exception) when (exception is UnauthorizedAccessException or IOException) { Diagnostics.Log("smoke scratch key: " + exception.Message); }
                 (_preferences.SetupClosedAtLaunch, _preferences.SetupClosedOnHome) = setupClosedBefore;

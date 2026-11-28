@@ -78,8 +78,17 @@ public static class SetupCatalog
     /// <summary>Under the command in the install popup.</summary>
     public const string PopupFootnote = "Install opens a new PowerShell tab with this command. Press Enter to install.";
 
+    /// <summary>Under a step's command in another item's popup: Node.js's in OpenCode's, winget's in PowerShell 7's or Node.js's.</summary>
+    public static string StepFootnote(string step, string then) =>
+        "Install " + step + " opens a new PowerShell tab with this command. Press Enter to install. " + then + " can be installed once " + step + " is found.";
+
     /// <summary>Under Node.js's command in OpenCode's popup.</summary>
-    public const string NodeFootnote = "Install Node.js opens a new PowerShell tab with this command. Press Enter to install. OpenCode can be installed once Node.js is found.";
+    public static readonly string NodeFootnote = StepFootnote("Node.js", "OpenCode");
+
+    /// <summary>A popup whose install goes through winget, on a PC without it.</summary>
+    public static string NeedsWinget(string name) => "winget, Microsoft's package installer, is not installed. " + name + " installs through it.";
+
+    public static string WingetInstalled(string then) => "winget is installed. " + then + " can be installed now.";
 
     /// <summary>OpenCode's popup on a PC without npm.</summary>
     public const string OpenCodeNeedsNode = "Node.js is not installed. It installs for all users, so Windows asks for admin rights during setup.";
@@ -103,6 +112,15 @@ public static class SetupCatalog
         "Needed by OpenCode, which installs through npm.",
         "Node.js installs for all users and needs admin rights; Windows asks for them when it starts.",
         new("https://nodejs.org/en/download"));
+
+    /// <summary>
+    /// winget, for PowerShell 7 and Node.js, which install through it. Not a row of its own: their popups lead with it where it
+    /// is missing. Windows 10 (1809 and later) and 11 come with it; Windows Sandbox, LTSC and Server editions do not.
+    /// </summary>
+    public static readonly SetupItem Winget = new("winget", "winget",
+        "Microsoft's package installer.",
+        "Comes with Windows 10 and 11, but not with Windows Sandbox, LTSC or Server editions.",
+        new("https://learn.microsoft.com/windows/package-manager/winget/"));
 
     /// <summary>The notice over a tab Install has just typed into.</summary>
     public const string Typed = "Press Enter to install.";
@@ -156,9 +174,20 @@ public static class SetupCatalog
         "codex" => "powershell -ExecutionPolicy ByPass -c \"irm https://chatgpt.com/codex/install.ps1 | iex\"",
         "opencode" => npm ? "npm.cmd install -g --allow-scripts=@opencode/cli @opencode/cli@latest" : null,
         "node" => winget ? "winget install --id OpenJS.NodeJS.LTS --source winget" : null,
+        "winget" => WingetCommand,
         "hermes" => "iex (irm https://hermes-agent.nousresearch.com/install.ps1)",
         _ => null
     };
+
+    /// <summary>
+    /// winget through Microsoft's own WinGet module from the PowerShell Gallery: Repair-WinGetPackageManager installs App
+    /// Installer, which carries winget, or registers it for an account that has it but not yet set up. In a child Windows
+    /// PowerShell with the policy bypassed for that process alone, since the module does not load under 5.1's default Restricted
+    /// policy; its prompts (the NuGet provider, the untrusted gallery) are left for the user to answer. For this account only,
+    /// so no admin rights are asked for. The same two steps installed winget in a Windows Sandbox run (November 27, 2026), there
+    /// with -Force and as the sandbox's administrator account; this line, prompts and all, is first tried in the sandbox.
+    /// </summary>
+    public const string WingetCommand = "powershell -ExecutionPolicy Bypass -c \"Install-Module Microsoft.WinGet.Client -Scope CurrentUser; Repair-WinGetPackageManager\"";
 
     /// <summary>
     /// Where an installer is known to put its program, for noticing an install that says nothing to Windows: Claude Code's
