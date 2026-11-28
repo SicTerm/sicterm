@@ -31,4 +31,4 @@ Run the four commands from the README before every commit. What each one proves:
 
 ## Releases
 
-Only the owner builds and uploads releases, with `scripts\Build-Release.ps1 -Upload` after bumping `<Version>` in `src\Sic.App\Sic.App.csproj`.
+Only the owner builds and uploads releases, with `scripts\Build-Release.ps1 -Upload -Winget` after bumping `<Version>` in `src\Sic.App\Sic.App.csproj`. That creates the GitHub release, publishes Setup to download.sicterm.app for the Microsoft Store, and opens the winget pull request.

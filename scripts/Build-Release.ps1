@@ -2,8 +2,10 @@
 param(
     # The release's version. The project's <Version> when not given; another, such as 0.9.1-trial, only for a local trial.
     [string]$Version,
-    # Also create the GitHub release v<Version> in the repository with the packages.
+    # Also create the GitHub release v<Version> in the repository with the packages, and publish Setup to download.sicterm.app.
     [switch]$Upload,
+    # With -Upload, also open the pull request that adds the version to winget (scripts\New-WingetPullRequest.ps1).
+    [switch]$Winget,
     # Leave the app and Setup unsigned, for a local trial on a PC that cannot sign; never with -Upload.
     [switch]$Unsigned,
     [switch]$SkipSmoke,
@@ -23,7 +25,7 @@ smoke-tests it unless -SkipSmoke, and packs that folder into the releases folder
   SicTerm-<version>-full.nupkg   what an installed SIC downloads to update, with a -delta package from the release before when
                                  that one is still in the folder
   releases.win.json              the list of releases an installed SIC reads
-  SicTerm-win.msi                with -Msi: SicTerm for every user of a PC, into Program Files\Chris Luton\SicTerm, for an
+  SicTerm-win.msi                with -Msi: SicTerm for every user of a PC, into Program Files\Christopher Luton\SicTerm, for an
                                  administrator (msiexec /i SicTerm-win.msi /qn, VELOPACK_INSTALLDIR="<folder>" for another
                                  folder); each user keeps their own settings, and the copy does not update itself
 
@@ -41,7 +43,12 @@ id's packages is refused before the build; move them to a folder of their own, s
 
 -Upload creates the GitHub release v<version> in the repository and attaches those files. It needs a clean working
 tree whose commit is on origin, so the tag names the code the release was built from, and the personal account's login in
-the GitHub CLI (gh auth login as chris-luton); its token goes to vpk and is never printed.
+the GitHub CLI (gh auth login as chris-luton); its token goes to vpk and is never printed. Before the GitHub release, it
+publishes Setup to https://download.sicterm.app/v<version>/SicTerm-win-Setup.exe with scripts\Publish-Download.ps1, the address
+a Microsoft Store submission takes; that needs the R2 API token Publish-Download.ps1 describes, checked before the build.
+
+-Winget, with -Upload, then opens the winget pull request for the version with scripts\New-WingetPullRequest.ps1. Each release
+still needs a Store submission in Partner Center, with the download.sicterm.app address the build prints.
 #>
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -56,6 +63,8 @@ $foreign = @(Get-ChildItem -LiteralPath $OutputDir -Filter *.nupkg -ErrorAction 
 if ($foreign) { throw "$OutputDir holds packages of another package id, such as $($foreign[0].Name). Move them, or the whole folder, to a folder of their own (artifacts\releases-SIChat, say) and build again." }
 
 if ($Upload -and $Unsigned) { throw 'A release is never uploaded unsigned.' }
+if ($Winget -and -not $Upload) { throw '-Winget needs -Upload: winget installs from the GitHub release.' }
+if ($Upload) { & (Join-Path $PSScriptRoot 'Publish-Download.ps1') -Version $Version -Setup . -CheckOnly }
 # Checked before the build, so a missing sign-in stops it before the smoke rather than after it.
 $signing = if ($Unsigned) { $null } else { & (Join-Path $PSScriptRoot 'Use-ArtifactSigning.ps1') }
 
@@ -82,15 +91,19 @@ try {
     $msiArguments = if ($Msi) { @('--msi', '--instLocation', 'PerMachine') } else { @() }
     $signArguments = if ($signing) { @('--azureTrustedSignFile', $signing.Metadata) } else { @() }
     dotnet vpk pack --packId $packageId --packVersion $Version --packDir $published --mainExe SicTerm.exe --runtime win-x64 `
-        --packTitle SicTerm --packAuthors 'Chris Luton' --icon (Join-Path $repo 'src\Sic.App\Assets\brand\sic.ico') --outputDir $OutputDir @msiArguments @signArguments | Out-Host
+        --packTitle SicTerm --packAuthors 'Christopher Luton' --icon (Join-Path $repo 'src\Sic.App\Assets\brand\sic.ico') --outputDir $OutputDir @msiArguments @signArguments | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "vpk pack failed (exit code $LASTEXITCODE)." }
 
     if ($Upload) {
+        $setup = Join-Path $OutputDir "$packageId-win-Setup.exe"
+        $download = & (Join-Path $PSScriptRoot 'Publish-Download.ps1') -Version $Version -Setup $setup | Select-Object -Last 1
         $token = gh auth token --hostname github.com --user $account 2>$null
         if ($LASTEXITCODE -ne 0 -or -not $token) { throw "The GitHub CLI has no login for $account. Run gh auth login and sign in as $account, then build again." }
         dotnet vpk upload github --outputDir $OutputDir --repoUrl $repositoryUrl --token $token --publish --releaseName "SicTerm $Version" --tag "v$Version" --targetCommitish $head | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "vpk upload failed (exit code $LASTEXITCODE)." }
         "Released SicTerm $Version as $repositoryUrl/releases/tag/v$Version"
+        if ($Winget) { & (Join-Path $PSScriptRoot 'New-WingetPullRequest.ps1') -Version $Version -Setup $setup -Account $account | Select-Object -Last 1 | ForEach-Object { "winget: $_" } }
+        "Microsoft Store: in Partner Center, start a new submission and set the package URL to $download (silent switch --silent)."
     }
 }
 finally { Pop-Location }
